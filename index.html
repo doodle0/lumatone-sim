@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lumatone Simulator</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+
+<body class="flex flex-col w-full h-full">
+
+  <div id="controls" class="flex-none flex flex-col bg-surface border-b border-border text-fg/high">
+
+    <!-- Row 1: Musical settings -->
+    <div class="flex items-center gap-4 px-4 py-2 flex-wrap">
+      <span class="text-lg font-semibold tracking-wide text-accent">Lumatone</span>
+
+      <label class="ctrl-label">
+        Tuning
+        <select id="tuning-select" class="ctrl-select">
+          <option value="31">31-TET</option>
+          <option value="19">19-TET</option>
+          <option value="12">12-TET</option>
+        </select>
+      </label>
+
+      <label class="ctrl-label">
+        Wave
+        <select id="wave-select" class="ctrl-select">
+          <option value="sine">Sine</option>
+          <option value="triangle" selected>Triangle</option>
+          <option value="sawtooth">Sawtooth</option>
+          <option value="square">Square</option>
+        </select>
+      </label>
+
+      <!-- ADSR group -->
+      <div class="flex items-center gap-3 border-l border-border pl-4">
+        <label class="ctrl-label">A
+          <input type="range" id="attack" min="0.001" max="2" step="0.001" value="0.01" class="ctrl-range">
+        </label>
+        <label class="ctrl-label">D
+          <input type="range" id="decay" min="0.01" max="2" step="0.01" value="0.1" class="ctrl-range">
+        </label>
+        <label class="ctrl-label">S
+          <input type="range" id="sustain" min="0" max="1" step="0.01" value="0.1" class="ctrl-range">
+        </label>
+        <label class="ctrl-label">R
+          <input type="range" id="release" min="0.01" max="3" step="0.01" value="0.3" class="ctrl-range">
+        </label>
+      </div>
+
+      <label class="ctrl-label border-l border-border pl-4">
+        Vol <input type="range" id="volume" min="0" max="1" step="0.01" value="0.5" class="ctrl-range">
+      </label>
+
+      <span id="midi-status" data-status="" class="ml-auto text-fg/hint 
+        data-[status=connected]:text-success/high 
+        data-[status=denied]:text-warning/high 
+        data-[status=unavailable]:text-warning/high">
+        MIDI: —
+      </span>
+    </div>
+
+    <!-- Row 2: Visual settings -->
+    <div class="flex items-center gap-4 px-4 py-2 flex-wrap border-t border-border">
+      <label class="ctrl-label">
+        Color
+        <select id="color-select" class="ctrl-select">
+          <option value="spiral" selected>Accidentals</option>
+          <option value="pitch">Pitch</option>
+        </select>
+      </label>
+
+      <label class="ctrl-label">
+        Size <input type="range" id="hex-size" min="10" max="80" step="1" value="50" class="ctrl-range">
+      </label>
+
+      <label class="ctrl-label gap-2 cursor-pointer select-none">
+        <input type="checkbox" id="kb-guide-toggle" checked class="sr-only peer">
+        <div class="relative w-9 h-5 rounded-full bg-fg/ghost transition-colors
+                      peer-checked:bg-accent
+                      after:content-[''] after:absolute after:top-0.5 after:left-0.5
+                      after:w-4 after:h-4 after:rounded-full after:bg-white/high
+                      after:transition-transform peer-checked:after:translate-x-4"></div>
+        KB Guide
+      </label>
+    </div>
+
+  </div>
+
+  <div id="spiral-bar"
+    class="flex-none flex items-center gap-2 px-4 py-1.5 bg-surface border-b border-border overflow-x-auto">
+    <span class="ctrl-label">Mode</span>
+    <div id="spiral-notes" class="flex gap-px"></div>
+    <span id="mode-offset-label" class="text-accent/high">—</span>
+
+    <span id="hint" class="ml-auto text-fg/hint">← → keyboard &nbsp;·&nbsp; Shift+← → mode</span>
+  </div>
+
+  <canvas id="canvas" class="flex-1 block w-full min-h-0"></canvas>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
+</html>

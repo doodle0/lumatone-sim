@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/forms";
+
+@theme {
+  --color-bg:      var(--color-neutral-950);
+  --color-surface: var(--color-neutral-900);
+  --color-border:  var(--color-neutral-800);
+  --color-fg:      var(--color-neutral-300);
+  --color-accent:  var(--color-purple-400);
+  --color-success: var(--color-green-400);
+  --color-warning: var(--color-orange-400);
+
+  --opacity-high:  90%;    /* active / in-focus states   */
+  --opacity-label: 50%;    /* secondary UI labels        */
+  --opacity-hint:  25%;    /* dim text, placeholders     */
+  --opacity-ghost: 15%;    /* background color tints     */
+}
+
+@layer base {
+  html {
+    height: 100%;
+    overflow: hidden;
+    background-color: theme(--color-bg);
+    color: theme(--color-fg);
+    font-family: sans-serif, system-ui;
+
+    @apply text-sm xl:text-base
+  }
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+}
+
+@layer components {
+  .ctrl-label  { @apply flex items-center gap-1.5 text-sm uppercase tracking-wide text-fg/label; }
+  .ctrl-range  { @apply w-20 accent-accent cursor-pointer; }
+  .ctrl-select { @apply bg-bg border-border text-fg py-0.5 cursor-pointer focus:ring-accent/label; }
+
+  .spiral-note {
+    @apply text-sm tracking-tighter w-10 text-center px-1.5 py-px rounded-sm whitespace-nowrap cursor-default select-none text-fg/hint;
+  }
+  .spiral-note.in-window {
+    @apply text-fg/high bg-accent/ghost;
+  }
+}
