@@ -42,6 +42,10 @@ function isValidAdsr(v: unknown): v is ADSR {
     && typeof a.release === 'number';
 }
 
+function hasNumericT<T extends { t: unknown }>(v: T): v is T & { t: number } {
+  return typeof v === 'object' && v !== null && typeof v.t === 'number';
+}
+
 /**
  * Parses and validates a scene JSON string. Throws with a descriptive message
  * on structurally invalid input (missing required top-level fields). Falls
@@ -65,7 +69,7 @@ export function parseScene(json: string): Scene {
     const v = value as Partial<ChannelConfig> | undefined;
     if (!v || typeof v.waveform !== 'string' || !isValidAdsr(v.adsr)) {
       console.warn(`Scene channel ${key}: invalid config, using default`);
-      channels[channel] = DEFAULT_CHANNEL_CONFIG;
+      channels[channel] = { waveform: DEFAULT_CHANNEL_CONFIG.waveform, adsr: { ...DEFAULT_CHANNEL_CONFIG.adsr } };
       continue;
     }
     channels[channel] = { waveform: v.waveform as WaveType, adsr: v.adsr };
@@ -76,7 +80,15 @@ export function parseScene(json: string): Scene {
     midiFile: raw.midiFile,
     tuning: { edo: raw.tuning.edo },
     channels,
-    cameraKeyframes: [...raw.cameraKeyframes].sort((a, b) => a.t - b.t),
-    modeKeyframes: [...raw.modeKeyframes].sort((a, b) => a.t - b.t),
+    cameraKeyframes: raw.cameraKeyframes.filter((kf) => {
+      if (hasNumericT(kf)) return true;
+      console.warn('Scene JSON: dropping cameraKeyframe with invalid or missing "t"', kf);
+      return false;
+    }).sort((a, b) => a.t - b.t),
+    modeKeyframes: raw.modeKeyframes.filter((kf) => {
+      if (hasNumericT(kf)) return true;
+      console.warn('Scene JSON: dropping modeKeyframe with invalid or missing "t"', kf);
+      return false;
+    }).sort((a, b) => a.t - b.t),
   };
 }

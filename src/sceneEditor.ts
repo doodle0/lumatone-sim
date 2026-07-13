@@ -55,6 +55,7 @@ const cameraTrack = createTimelineTrack<CameraKeyframe>(cameraTrackEl,
     if (!scene) return;
     scene.cameraKeyframes[index]!.t = Math.max(0, newT);
     scene.cameraKeyframes.sort((a, b) => a.t - b.t);
+    selectedCameraIndex = index;
     refreshTimeline();
   });
 
@@ -64,6 +65,7 @@ const modeTrack = createTimelineTrack<ModeKeyframe>(modeTrackEl,
     if (!scene) return;
     scene.modeKeyframes[index]!.t = Math.max(0, newT);
     scene.modeKeyframes.sort((a, b) => a.t - b.t);
+    selectedModeIndex = index;
     refreshTimeline();
   });
 

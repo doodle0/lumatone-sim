@@ -49,12 +49,16 @@ export function createTimelineTrack<K extends TimelineKeyframeLike>(
 
       marker.addEventListener('pointerdown', (e) => {
         e.preventDefault();
+        const draggedKf = keyframes[index];
         selectedIndex = index;
         onSelect(index);
         redrawMarkers();
 
         function onMove(ev: PointerEvent): void {
-          onDrag(index, pxToTime(ev.clientX));
+          const currentIndex = keyframes.indexOf(draggedKf!);
+          if (currentIndex === -1) return;
+          selectedIndex = currentIndex;
+          onDrag(currentIndex, pxToTime(ev.clientX));
         }
         function onUp(): void {
           window.removeEventListener('pointermove', onMove);
