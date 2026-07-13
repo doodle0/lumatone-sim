@@ -57,6 +57,15 @@
     <div id="mode-inspector" class="flex items-center gap-3 pl-[4.75rem] text-sm"></div>
   </div>
 
+  <div id="channels-panel" class="flex-none flex flex-col gap-2 px-4 py-3 bg-surface border-b border-border">
+    <div class="flex items-center gap-3">
+      <span class="ctrl-label">Channels</span>
+      <button id="channel-add-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer">+ channel</button>
+      <button id="save-scene-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer ml-auto">Save Scene JSON</button>
+    </div>
+    <div id="channels-table" class="flex flex-col gap-1"></div>
+  </div>
+
   <canvas id="preview-canvas" class="flex-1 block w-full min-h-0"></canvas>
   <script type="module" src="/src/sceneEditor.ts"></script>
 </body>

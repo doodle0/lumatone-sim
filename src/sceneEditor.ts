@@ -4,6 +4,8 @@ import { createRenderer } from './renderer.ts';
 import { createRecordingEngine } from './recordingEngine.ts';
 import { parseScene } from './scene.ts';
 import type { Scene } from './scene.ts';
+import type { ChannelConfig } from './scene.ts';
+import { DEFAULT_CHANNEL_CONFIG } from './scene.ts';
 import { parseMidiFile, midiDuration } from './midiFile.ts';
 import type { MidiEvent } from './midiFile.ts';
 import { createScenePlayer } from './scenePlayer.ts';
@@ -43,6 +45,9 @@ const modeTrackEl       = document.getElementById('mode-track')       as HTMLDiv
 const modeInspectorEl   = document.getElementById('mode-inspector')   as HTMLDivElement;
 const modeAddBtn        = document.getElementById('mode-add-btn')     as HTMLButtonElement;
 const modeDelBtn        = document.getElementById('mode-del-btn')     as HTMLButtonElement;
+const channelsTableEl = document.getElementById('channels-table')  as HTMLDivElement;
+const channelAddBtn   = document.getElementById('channel-add-btn') as HTMLButtonElement;
+const saveSceneBtn    = document.getElementById('save-scene-btn')  as HTMLButtonElement;
 
 const cameraTrack = createTimelineTrack<CameraKeyframe>(cameraTrackEl,
   (index) => { selectedCameraIndex = index; renderCameraInspector(); },
@@ -77,7 +82,82 @@ function refreshTimeline(): void {
   renderCameraInspector();
   renderModeInspector();
   updatePreview();
+  renderChannelsTable();
 }
+
+function renderChannelsTable(): void {
+  channelsTableEl.innerHTML = '';
+  if (!scene) return;
+
+  for (const [key, config] of Object.entries(scene.channels)) {
+    const channel = Number(key);
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-3 text-sm';
+
+    const label = document.createElement('span');
+    label.className = 'ctrl-label w-20';
+    label.textContent = `Ch ${channel}`;
+    row.appendChild(label);
+
+    const waveSelect = document.createElement('select');
+    waveSelect.className = 'ctrl-select';
+    for (const wave of ['sine', 'triangle', 'sawtooth', 'square']) {
+      const o = document.createElement('option');
+      o.value = wave; o.textContent = wave;
+      if (config.waveform === wave) o.selected = true;
+      waveSelect.appendChild(o);
+    }
+    waveSelect.addEventListener('change', () => {
+      config.waveform = waveSelect.value as ChannelConfig['waveform'];
+    });
+    row.appendChild(waveSelect);
+
+    for (const field of ['attack', 'decay', 'sustain', 'release'] as const) {
+      const wrap = document.createElement('label');
+      wrap.className = 'ctrl-label';
+      wrap.textContent = field[0]!.toUpperCase() + ' ';
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.step = '0.01';
+      input.value = String(config.adsr[field]);
+      input.className = 'ctrl-select w-16';
+      input.addEventListener('input', () => { config.adsr[field] = parseFloat(input.value) || 0; });
+      wrap.appendChild(input);
+      row.appendChild(wrap);
+    }
+
+    const delBtn = document.createElement('button');
+    delBtn.textContent = 'remove';
+    delBtn.className = 'px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer';
+    delBtn.addEventListener('click', () => {
+      delete scene!.channels[channel];
+      renderChannelsTable();
+    });
+    row.appendChild(delBtn);
+
+    channelsTableEl.appendChild(row);
+  }
+}
+
+channelAddBtn.addEventListener('click', () => {
+  if (!scene) return;
+  let next = 0;
+  while (scene.channels[next]) next++;
+  scene.channels[next] = { waveform: DEFAULT_CHANNEL_CONFIG.waveform, adsr: { ...DEFAULT_CHANNEL_CONFIG.adsr } };
+  renderChannelsTable();
+});
+
+saveSceneBtn.addEventListener('click', () => {
+  if (!scene) return;
+  const json = JSON.stringify(scene, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${scene.name.replace(/\s+/g, '-')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
 
 function renderCameraInspector(): void {
   cameraInspectorEl.innerHTML = '';
