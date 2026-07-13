@@ -12,6 +12,8 @@ import type { LayoutConfig } from './layout.ts';
 import { getDegree } from './layout.ts';
 import type { KeyboardWindow } from './keyboardInput.ts';
 import { spiralNote } from './spiralFifths.ts';
+import type { CameraState } from './camera.ts';
+import { DEFAULT_CAMERA } from './camera.ts';
 
 let originX = 0;
 let originY = 0;
@@ -126,6 +128,8 @@ export interface RendererState {
   keyWindow: KeyboardWindow;
   colorMode: ColorMode;
   showKbGuide: boolean;
+  /** Scripted view transform; defaults to {q:0, r:0, zoom:1} (unrotated, centered). */
+  camera?: CameraState;
 }
 
 export interface Renderer {
@@ -143,16 +147,24 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
   let offscreen: OffscreenCanvas | null = null;
   let offCtx: OffscreenCanvasRenderingContext2D | null = null;
   let hexSize = DEFAULT_HEX_SIZE;
+  let effSize = DEFAULT_HEX_SIZE;
+  let camera: CameraState = DEFAULT_CAMERA;
   let dpr = 1;
   let cssW = 0;
   let cssH = 0;
   let lastState: RendererState | null = null;
   let keys: HexKey[] = [];
 
+  function camerasEqual(a: CameraState, b: CameraState): boolean {
+    return a.q === b.q && a.r === b.r && a.zoom === b.zoom;
+  }
+
   function recomputeKeys(): void {
-    originX = cssW / 2;
-    originY = cssH / 2;
-    keys = visibleKeys(cssW, cssH, hexSize);
+    effSize = hexSize * camera.zoom;
+    const [focusX, focusY] = hexCenter(camera.q, camera.r, effSize, 0, 0);
+    originX = cssW / 2 - focusX;
+    originY = cssH / 2 - focusY;
+    keys = visibleKeys(cssW, cssH, effSize, originX, originY);
   }
 
   function resize(w: number, h: number): void {
@@ -194,26 +206,34 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
       if (!inMode) { l *= 0.5; c *= 0.5; }
 
       const sl = l < 0.5 ? l + STROKE_L_DELTA : l - STROKE_L_DELTA;
-      drawHex(offCtx, key.q, key.r, hexSize,
+      drawHex(offCtx, key.q, key.r, effSize,
         ok(l, c, h),
         ok(sl, c * STROKE_C_FACTOR, h),
         0.5,
       );
 
-      if (hexSize >= 18) {
+      if (effSize >= 18) {
         const ll = l < 0.5 ? l + 0.5 : l - 0.5;
-        drawLabel(offCtx, key.q, key.r, hexSize, note.name,
+        drawLabel(offCtx, key.q, key.r, effSize, note.name,
           ok(ll, c * 0.55, h, inMode ? 0.70 : 0.35));
       }
     }
   }
 
   function render(state: RendererState): void {
+    const nextCamera = state.camera ?? DEFAULT_CAMERA;
+    const cameraChanged = !camerasEqual(camera, nextCamera);
+    if (cameraChanged) {
+      camera = nextCamera;
+      recomputeKeys();
+    }
+
     const rebuild = !lastState
       || lastState.tuning !== state.tuning
       || lastState.layout !== state.layout
       || lastState.colorMode !== state.colorMode
-      || lastState.inModePitchClasses !== state.inModePitchClasses;
+      || lastState.inModePitchClasses !== state.inModePitchClasses
+      || cameraChanged;
     if (rebuild || !offscreen) buildStaticLayer(state);
     lastState = state;
 
@@ -229,16 +249,16 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
         const deg = getDegree(q, r, layout);
         const note = spiralNote(deg, edo);
         const [l, c, h] = idleLCH(deg, edo, note.acc, colorMode);
-        drawHex(ctx, q, r, hexSize, 'transparent', ok(KB_OUTLINE_L, c * KB_OUTLINE_C_FACTOR, h, KB_OUTLINE_A), 3);
-        if (hexSize >= 18) {
+        drawHex(ctx, q, r, effSize, 'transparent', ok(KB_OUTLINE_L, c * KB_OUTLINE_C_FACTOR, h, KB_OUTLINE_A), 3);
+        if (effSize >= 18) {
           const label = keyWindow.keyLabels.get(keyCode) ?? '';
-          const [cx, cy] = hexCenter(q, r, hexSize, originX, originY);
-          const fontSize = Math.max(6, Math.min(9, hexSize * 0.30));
+          const [cx, cy] = hexCenter(q, r, effSize, originX, originY);
+          const fontSize = Math.max(6, Math.min(9, effSize * 0.30));
           ctx.font = `${fontSize}px system-ui, sans-serif`;
           ctx.fillStyle = ok(l < 0.5 ? l + 0.40 : l - 0.25, c * 0.5, h, 0.55);
           ctx.textAlign = 'center';
           ctx.textBaseline = 'alphabetic';
-          ctx.fillText(label, cx, cy + hexSize * SQRT3 * 0.28);
+          ctx.fillText(label, cx, cy + effSize * SQRT3 * 0.28);
         }
       }
     }
@@ -249,16 +269,16 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
       if (!activeKeys.has(key.index) && !activeDegrees.has(deg)) continue;
       const note = spiralNote(deg, edo);
       const [l, c, h] = idleLCH(deg, edo, note.acc, colorMode);
-      drawHex(ctx, key.q, key.r, hexSize,
+      drawHex(ctx, key.q, key.r, effSize,
         ok(l + D_ACTIVE_L, c, h),
         ok(l + D_ACTIVE_L + STROKE_L_DELTA, c, h),
         1,
         ok(l + D_ACTIVE_L, c, h),
       );
-      if (hexSize >= 18) {
+      if (effSize >= 18) {
         const al = l + D_ACTIVE_L;
         const ll = al < 0.5 ? al + 0.5 : al - 0.5;
-        drawLabel(ctx, key.q, key.r, hexSize, note.name, ok(ll, c * 0.55, h));
+        drawLabel(ctx, key.q, key.r, effSize, note.name, ok(ll, c * 0.55, h));
       }
     }
   }
@@ -266,9 +286,9 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
   function hitTest(x: number, y: number): number {
     let best = -1;
     let bestDist = Infinity;
-    const sqRadius = (hexSize * 0.96) ** 2;
+    const sqRadius = (effSize * 0.96) ** 2;
     for (const key of keys) {
-      const [cx, cy] = hexCenter(key.q, key.r, hexSize, originX, originY);
+      const [cx, cy] = hexCenter(key.q, key.r, effSize, originX, originY);
       const dx = x - cx, dy = y - cy;
       const d2 = dx * dx + dy * dy;
       if (d2 < sqRadius && d2 < bestDist) { bestDist = d2; best = key.index; }
