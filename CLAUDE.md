@@ -24,7 +24,8 @@ All modules use the factory-function pattern (no classes).
 | `src/renderer.ts` | Canvas 2D rendering. Offscreen static layer + per-frame active-key overlay. OKLCH colours. |
 | `src/keyboardInput.ts` | QWERTY → hex position mapping. Shiftable keyboard window. |
 | `src/midiInput.ts` | Web MIDI input. Maps MIDI notes to EDO degrees via `midiToDegree`; uses `build12ToEdoMap` for enharmonic mapping. |
-| `src/main.ts` | Wires all modules; handles keyboard, mouse, MIDI, UI controls, resize. |
+| `src/recordingEngine.ts` | Records the canvas + audio output (via `audioEngine.getAudioContext()`/`getMasterOutput()`) into a WebM blob using `MediaRecorder`. |
+| `src/main.ts` | Wires all modules; handles keyboard, mouse, MIDI, UI controls, resize, recording. |
 
 ## Hex grid geometry
 
@@ -164,3 +165,4 @@ QWERTY rows map to a 4-row window into the axial grid (12 keys on rows 0–1, 11
 - **MIDI output**: send NoteOn/NoteOff to a Web MIDI output port.
 - **Panning**: drag the canvas to pan the infinite grid.
 - **Colour editor**: expose `spiralLch` breakpoints in the UI.
+- **Scene editor & video rendering**: a separate `scene-editor.html` page for authoring MIDI-driven "scenes" — scripted camera pans/zooms and mode-window changes on a timeline, per-channel ADSR/waveform config, rendered to WebM via `recordingEngine.ts` for use in educational microtonal-scale videos. Introduces the project's first external runtime dependency (a MIDI file parser), as a deliberate scoped exception to the zero-deps principle. Full design: `docs/superpowers/specs/2026-07-13-scene-editor-design.md`. Further ideas noted there but out of scope for the first pass: caption keyframes, interval/ratio readout, A/B tuning comparison, slow-motion playback, WAV export, interactive pan/zoom in the editor preview.
