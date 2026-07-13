@@ -14,6 +14,7 @@
   --opacity-label: 50%;    /* secondary UI labels        */
   --opacity-hint:  25%;    /* dim text, placeholders     */
   --opacity-ghost: 15%;    /* background color tints     */
+  --opacity-hover: 25%;    /* interactive element hover backgrounds */
 }
 
 @layer base {

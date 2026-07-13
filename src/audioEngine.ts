@@ -25,6 +25,8 @@ export interface AudioEngine {
   setWaveform(type: WaveType): void;
   setMasterVolume(value: number): void;
   isActive(id: string): boolean;
+  getAudioContext(): AudioContext;
+  getMasterOutput(): AudioNode;
 }
 
 export function createAudioEngine(): AudioEngine {
@@ -120,6 +122,15 @@ export function createAudioEngine(): AudioEngine {
 
     isActive(id: string): boolean {
       return voices.has(id);
+    },
+
+    getAudioContext(): AudioContext {
+      return ensureCtx();
+    },
+
+    getMasterOutput(): AudioNode {
+      ensureCtx();
+      return masterGain!;
     },
   };
 }

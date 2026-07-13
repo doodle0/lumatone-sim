@@ -9,6 +9,8 @@ import { buildKeyboardWindow, keyWindowIndex } from './keyboardInput.ts';
 import { createMidiInput, midiToDegree } from './midiInput.ts';
 import { build12ToEdoMap, kToName } from './spiralFifths.ts';
 import type { RendererState, ColorMode } from './renderer.ts';
+import { createRecordingEngine } from './recordingEngine.ts';
+import type { RecordingEngine } from './recordingEngine.ts';
 
 // --- State ---
 let tuningKey = '31';
@@ -280,6 +282,52 @@ const resizeObserver = new ResizeObserver((entries) => {
 resizeObserver.observe(canvas);
 const initRect = canvas.getBoundingClientRect();
 if (initRect.width > 0) renderer.resize(initRect.width, initRect.height);
+
+// --- Recording ---
+const recordBtn    = document.getElementById('record-btn')    as HTMLButtonElement;
+const stopBtn      = document.getElementById('stop-btn')      as HTMLButtonElement;
+const recordStatus = document.getElementById('record-status') as HTMLSpanElement;
+const recordTimeEl = document.getElementById('record-time')   as HTMLSpanElement;
+
+let recEngine: RecordingEngine | null = null;
+let timerInterval: ReturnType<typeof setInterval> | null = null;
+let recordStart = 0;
+
+function formatRecTime(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+recordBtn.addEventListener('click', () => {
+  if (!recEngine) {
+    recEngine = createRecordingEngine(canvas, audio.getAudioContext(), audio.getMasterOutput());
+  }
+  recEngine.start();
+  recordStart = Date.now();
+  recordTimeEl.textContent = '0:00';
+  recordBtn.classList.add('hidden');
+  stopBtn.classList.remove('hidden');
+  recordStatus.classList.remove('hidden');
+  timerInterval = setInterval(() => {
+    recordTimeEl.textContent = formatRecTime(Date.now() - recordStart);
+  }, 1000);
+});
+
+stopBtn.addEventListener('click', () => {
+  if (!recEngine) return;
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  stopBtn.classList.add('hidden');
+  recordStatus.classList.add('hidden');
+  recordBtn.classList.remove('hidden');
+  recEngine.stop().then((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `lumatone-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+});
 
 // --- Start ---
 rafId = requestAnimationFrame(frame);

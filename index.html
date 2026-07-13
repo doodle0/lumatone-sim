@@ -88,6 +88,22 @@
       </label>
     </div>
 
+    <!-- Row 3: Recording -->
+    <div class="flex items-center gap-4 px-4 py-2 border-t border-border">
+      <button id="record-btn"
+        class="px-3 py-1 rounded text-sm font-medium bg-accent/ghost text-accent hover:bg-accent/hover transition-colors cursor-pointer">
+        ⏺ Record
+      </button>
+      <button id="stop-btn"
+        class="hidden px-3 py-1 rounded text-sm font-medium bg-red-500/ghost text-red-400 hover:bg-red-500/hover transition-colors cursor-pointer">
+        ⏹ Stop
+      </button>
+      <span id="record-status" class="hidden text-red-400 text-sm">
+        <span class="inline-block size-2 rounded-full bg-red-400 animate-pulse mr-1.5 align-middle"></span>
+        <span id="record-time" class="tabular-nums">0:00</span>
+      </span>
+    </div>
+
   </div>
 
   <div id="spiral-bar"
