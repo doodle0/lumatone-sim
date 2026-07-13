@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lumatone Scene Editor</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+
+<body class="flex flex-col w-full h-full">
+
+  <div id="controls" class="flex-none flex flex-col bg-surface border-b border-border text-fg/high">
+    <div class="flex items-center gap-4 px-4 py-2 flex-wrap">
+      <span class="text-lg font-semibold tracking-wide text-accent">Scene Editor</span>
+
+      <label class="ctrl-label">
+        Scene JSON
+        <input type="file" id="scene-file-input" accept="application/json" class="ctrl-select">
+      </label>
+
+      <label class="ctrl-label">
+        MIDI File
+        <input type="file" id="midi-file-input" accept=".mid,.midi" class="ctrl-select">
+      </label>
+
+      <button id="render-btn" disabled
+        class="px-3 py-1 rounded text-sm font-medium bg-accent/ghost text-accent hover:bg-accent/hover transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+        ▶ Render
+      </button>
+
+      <span id="render-status" class="text-fg/label text-sm"></span>
+    </div>
+  </div>
+
+  <div id="timeline" class="flex-none flex flex-col gap-2 px-4 py-3 bg-surface border-b border-border">
+    <div class="flex items-center gap-3">
+      <span class="ctrl-label w-16">Time</span>
+      <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" class="ctrl-range flex-1">
+      <span id="scrub-time" class="text-fg/label text-sm tabular-nums w-24 text-right">0.0 / 0.0s</span>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <span class="ctrl-label w-16">Camera</span>
+      <div id="camera-track" class="flex-1"></div>
+      <button id="camera-add-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer">+ kf</button>
+      <button id="camera-del-btn" class="px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer">delete</button>
+    </div>
+    <div id="camera-inspector" class="flex items-center gap-3 pl-[4.75rem] text-sm"></div>
+
+    <div class="flex items-center gap-3">
+      <span class="ctrl-label w-16">Mode</span>
+      <div id="mode-track" class="flex-1"></div>
+      <button id="mode-add-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer">+ kf</button>
+      <button id="mode-del-btn" class="px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer">delete</button>
+    </div>
+    <div id="mode-inspector" class="flex items-center gap-3 pl-[4.75rem] text-sm"></div>
+  </div>
+
+  <div id="channels-panel" class="flex-none flex flex-col gap-2 px-4 py-3 bg-surface border-b border-border">
+    <div class="flex items-center gap-3">
+      <span class="ctrl-label">Channels</span>
+      <button id="channel-add-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer">+ channel</button>
+      <button id="save-scene-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer ml-auto">Save Scene JSON</button>
+    </div>
+    <div id="channels-table" class="flex flex-col gap-1"></div>
+  </div>
+
+  <canvas id="preview-canvas" class="flex-1 block w-full min-h-0"></canvas>
+  <script type="module" src="/src/sceneEditor.ts"></script>
+</body>
+
+</html>

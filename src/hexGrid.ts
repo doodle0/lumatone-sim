@@ -73,9 +73,13 @@ export function hexVertices(cx: number, cy: number, size: number): [number, numb
  * Inverse-rotates the screen bounding box into unrotated axial space to compute
  * the correct (q, r) range regardless of GRID_ANGLE.
  */
-export function visibleKeys(canvasW: number, canvasH: number, size: number): HexKey[] {
-  const originX = canvasW / 2;
-  const originY = canvasH / 2;
+export function visibleKeys(
+  canvasW: number,
+  canvasH: number,
+  size: number,
+  originX: number = canvasW / 2,
+  originY: number = canvasH / 2,
+): HexKey[] {
   const pad = size * 2;
 
   // Four corners of the padded screen rectangle, relative to canvas centre.

@@ -288,6 +288,7 @@ const recordBtn    = document.getElementById('record-btn')    as HTMLButtonEleme
 const stopBtn      = document.getElementById('stop-btn')      as HTMLButtonElement;
 const recordStatus = document.getElementById('record-status') as HTMLSpanElement;
 const recordTimeEl = document.getElementById('record-time')   as HTMLSpanElement;
+const recordErrorEl = document.getElementById('record-error') as HTMLSpanElement;
 
 let recEngine: RecordingEngine | null = null;
 let timerInterval: ReturnType<typeof setInterval> | null = null;
@@ -302,7 +303,14 @@ recordBtn.addEventListener('click', () => {
   if (!recEngine) {
     recEngine = createRecordingEngine(canvas, audio.getAudioContext(), audio.getMasterOutput());
   }
-  recEngine.start();
+  recordErrorEl.classList.add('hidden');
+  try {
+    recEngine.start();
+  } catch (err) {
+    recordErrorEl.textContent = `Recording error: ${err instanceof Error ? err.message : String(err)}`;
+    recordErrorEl.classList.remove('hidden');
+    return;
+  }
   recordStart = Date.now();
   recordTimeEl.textContent = '0:00';
   recordBtn.classList.add('hidden');
