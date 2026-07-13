@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lumatone Scene Editor</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+
+<body class="flex flex-col w-full h-full">
+
+  <div id="controls" class="flex-none flex flex-col bg-surface border-b border-border text-fg/high">
+    <div class="flex items-center gap-4 px-4 py-2 flex-wrap">
+      <span class="text-lg font-semibold tracking-wide text-accent">Scene Editor</span>
+
+      <label class="ctrl-label">
+        Scene JSON
+        <input type="file" id="scene-file-input" accept="application/json" class="ctrl-select">
+      </label>
+
+      <label class="ctrl-label">
+        MIDI File
+        <input type="file" id="midi-file-input" accept=".mid,.midi" class="ctrl-select">
+      </label>
+
+      <button id="render-btn" disabled
+        class="px-3 py-1 rounded text-sm font-medium bg-accent/ghost text-accent hover:bg-accent/hover transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+        ▶ Render
+      </button>
+
+      <span id="render-status" class="text-fg/label text-sm"></span>
+    </div>
+  </div>
+
+  <canvas id="preview-canvas" class="flex-1 block w-full min-h-0"></canvas>
+  <script type="module" src="/src/sceneEditor.ts"></script>
+</body>
+
+</html>
