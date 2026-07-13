@@ -1,6 +1,6 @@
 # Lumatone Simulator
 
-Browser-based simulator for the Lumatone microtonal keyboard instrument. Pure TypeScript + Vite, no external runtime dependencies.
+Browser-based simulator for the Lumatone microtonal keyboard instrument. Pure TypeScript + Vite. Zero external runtime dependencies, with one deliberate exception: `@tonejs/midi` (MIDI file parsing for the scene editor).
 
 ## Commands
 
@@ -25,7 +25,13 @@ All modules use the factory-function pattern (no classes).
 | `src/keyboardInput.ts` | QWERTY → hex position mapping. Shiftable keyboard window. |
 | `src/midiInput.ts` | Web MIDI input. Maps MIDI notes to EDO degrees via `midiToDegree`; uses `build12ToEdoMap` for enharmonic mapping. |
 | `src/recordingEngine.ts` | Records the canvas + audio output (via `audioEngine.getAudioContext()`/`getMasterOutput()`) into a WebM blob using `MediaRecorder`. |
-| `src/main.ts` | Wires all modules; handles keyboard, mouse, MIDI, UI controls, resize, recording. |
+| `src/midiFile.ts` | Parses a Standard MIDI File (via `@tonejs/midi`) into a flat, time-sorted list of note on/off events. |
+| `src/camera.ts` | Scripted camera for scene playback: `{q, r, zoom}` state, hold-then-ease keyframe interpolation. |
+| `src/scene.ts` | Scene JSON schema (MIDI reference, per-channel ADSR/waveform, camera/mode keyframes) and parser. |
+| `src/scenePlayer.ts` | Scene playback orchestrator: schedules MIDI + camera + mode keyframes against a shared clock, drives `audioEngine`/`renderer`, auto-starts/stops `recordingEngine`. |
+| `src/timelineTrack.ts` | Generic draggable keyframe-track UI component, used by the scene editor's Camera and Mode tracks. |
+| `src/sceneEditor.ts` | Scene editor page (`scene-editor.html`): file loading, timeline editing, channel config, and Render. |
+| `src/main.ts` | Wires all modules for the interactive performance page (`index.html`); handles keyboard, mouse, MIDI, UI controls, resize, recording. |
 
 ## Hex grid geometry
 
@@ -158,6 +164,20 @@ QWERTY rows map to a 4-row window into the axial grid (12 keys on rows 0–1, 11
 - Waveforms: sine, triangle, sawtooth, square.
 - `AudioContext` created lazily on first note (satisfies browser autoplay policy).
 
+## Scene editor
+
+`scene-editor.html` (`src/sceneEditor.ts`) authors and renders MIDI-driven "scenes" for educational microtonal-scale videos — separate from the interactive performance page (`index.html`/`main.ts`).
+
+- A **scene** = one MIDI file + one keyframe timeline = one rendered `.webm` output. Multiple scenes are assembled into a full video by hand, outside the app.
+- **Scene JSON** (`src/scene.ts`): `{ name, midiFile, tuning: { edo }, channels: Record<midiChannel, { waveform, adsr }>, cameraKeyframes, modeKeyframes }`. `tuning.edo` is fixed for the whole scene; per-channel `waveform`/`adsr` is static for the whole scene (not keyframable).
+- **Camera keyframes** (`src/camera.ts`): `{ t, q, r, zoom, duration?, easing? }`. Hold-then-ease semantics — the camera holds at the previous keyframe's `(q, r, zoom)` until `duration` seconds before this keyframe's `t`, then eases in (`easing` ∈ `linear | easeIn | easeOut | easeInOut`, default `easeInOut`), arriving exactly at `t`.
+- **Mode keyframes**: `{ t, modeOffset }`. Instant switch (no easing — `modeOffset` is discrete), releases all currently-sounding scene notes on change (same safety behavior as the Shift+←/→ live control).
+- **Camera state** `{q, r, zoom}` (`src/camera.ts`) is the single source of truth for `renderer.ts`'s view transform — `RendererState.camera` (optional, defaults to `{q:0,r:0,zoom:1}`), effective hex size = `hexSize × zoom`, origin derived so `(q, r)` renders at canvas center. The interactive page never sets this field, so its behavior is unchanged.
+- **Render**: fully automatic. Load a scene JSON + its `.mid` file, click Render — `scenePlayer.ts` plays the scene start-to-finish (scheduling MIDI note on/off, camera, and mode keyframes against one clock) while `recordingEngine.ts` records, then auto-downloads the WebM when the MIDI ends (+ 1s release tail). No manual start/stop during playback.
+- Full design and rationale: `docs/superpowers/specs/2026-07-13-scene-editor-design.md`.
+
+Ideas noted in that spec but intentionally out of scope for the first pass: caption/text-overlay keyframes, live interval/ratio readout, A/B tuning comparison, slow-motion playback, WAV-only audio export, keyframable per-channel ADSR, multi-MIDI-file scenes, interactive pan/zoom in the editor preview canvas.
+
 ## Planned extensions
 
 - **JI support**: implement `TuningEngine` with a ratio table; `spiralFifths` already maps lattice positions to names.
@@ -165,4 +185,3 @@ QWERTY rows map to a 4-row window into the axial grid (12 keys on rows 0–1, 11
 - **MIDI output**: send NoteOn/NoteOff to a Web MIDI output port.
 - **Panning**: drag the canvas to pan the infinite grid.
 - **Colour editor**: expose `spiralLch` breakpoints in the UI.
-- **Scene editor & video rendering**: a separate `scene-editor.html` page for authoring MIDI-driven "scenes" — scripted camera pans/zooms and mode-window changes on a timeline, per-channel ADSR/waveform config, rendered to WebM via `recordingEngine.ts` for use in educational microtonal-scale videos. Introduces the project's first external runtime dependency (a MIDI file parser), as a deliberate scoped exception to the zero-deps principle. Full design: `docs/superpowers/specs/2026-07-13-scene-editor-design.md`. Further ideas noted there but out of scope for the first pass: caption keyframes, interval/ratio readout, A/B tuning comparison, slow-motion playback, WAV export, interactive pan/zoom in the editor preview.
