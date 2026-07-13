@@ -4,9 +4,16 @@ import { createRenderer } from './renderer.ts';
 import { createRecordingEngine } from './recordingEngine.ts';
 import { parseScene } from './scene.ts';
 import type { Scene } from './scene.ts';
-import { parseMidiFile } from './midiFile.ts';
+import { parseMidiFile, midiDuration } from './midiFile.ts';
 import type { MidiEvent } from './midiFile.ts';
 import { createScenePlayer } from './scenePlayer.ts';
+import { createTimelineTrack } from './timelineTrack.ts';
+import type { CameraKeyframe } from './camera.ts';
+import { interpolateCamera, DEFAULT_CAMERA } from './camera.ts';
+import type { ModeKeyframe } from './scene.ts';
+import { TUNINGS } from './tuningEngine.ts';
+import { LAYOUT_PRESETS } from './layout.ts';
+import { buildKeyboardWindow } from './keyboardInput.ts';
 
 const canvas = document.getElementById('preview-canvas') as HTMLCanvasElement;
 const audio = createAudioEngine();
@@ -17,8 +24,173 @@ const midiFileInput  = document.getElementById('midi-file-input')  as HTMLInputE
 const renderBtn      = document.getElementById('render-btn')       as HTMLButtonElement;
 const statusEl       = document.getElementById('render-status')    as HTMLSpanElement;
 
+const PREVIEW_KEY_WINDOW = buildKeyboardWindow(-6, -2);
+
 let scene: Scene | null = null;
 let events: MidiEvent[] | null = null;
+
+let selectedCameraIndex = -1;
+let selectedModeIndex = -1;
+let scrubTime = 0;
+
+const scrubInput   = document.getElementById('scrub')            as HTMLInputElement;
+const scrubTimeEl  = document.getElementById('scrub-time')       as HTMLSpanElement;
+const cameraTrackEl     = document.getElementById('camera-track')     as HTMLDivElement;
+const cameraInspectorEl = document.getElementById('camera-inspector') as HTMLDivElement;
+const cameraAddBtn      = document.getElementById('camera-add-btn')   as HTMLButtonElement;
+const cameraDelBtn      = document.getElementById('camera-del-btn')   as HTMLButtonElement;
+const modeTrackEl       = document.getElementById('mode-track')       as HTMLDivElement;
+const modeInspectorEl   = document.getElementById('mode-inspector')   as HTMLDivElement;
+const modeAddBtn        = document.getElementById('mode-add-btn')     as HTMLButtonElement;
+const modeDelBtn        = document.getElementById('mode-del-btn')     as HTMLButtonElement;
+
+const cameraTrack = createTimelineTrack<CameraKeyframe>(cameraTrackEl,
+  (index) => { selectedCameraIndex = index; renderCameraInspector(); },
+  (index, newT) => {
+    if (!scene) return;
+    scene.cameraKeyframes[index]!.t = Math.max(0, newT);
+    scene.cameraKeyframes.sort((a, b) => a.t - b.t);
+    refreshTimeline();
+  });
+
+const modeTrack = createTimelineTrack<ModeKeyframe>(modeTrackEl,
+  (index) => { selectedModeIndex = index; renderModeInspector(); },
+  (index, newT) => {
+    if (!scene) return;
+    scene.modeKeyframes[index]!.t = Math.max(0, newT);
+    scene.modeKeyframes.sort((a, b) => a.t - b.t);
+    refreshTimeline();
+  });
+
+function sceneDuration(): number {
+  return events ? midiDuration(events) + 1 : 1;
+}
+
+function refreshTimeline(): void {
+  if (!scene) return;
+  const duration = sceneDuration();
+  scrubInput.max = String(duration);
+  cameraTrack.setDuration(duration);
+  cameraTrack.setKeyframes(scene.cameraKeyframes);
+  modeTrack.setDuration(duration);
+  modeTrack.setKeyframes(scene.modeKeyframes);
+  renderCameraInspector();
+  renderModeInspector();
+  updatePreview();
+}
+
+function renderCameraInspector(): void {
+  cameraInspectorEl.innerHTML = '';
+  if (!scene || selectedCameraIndex < 0 || selectedCameraIndex >= scene.cameraKeyframes.length) return;
+  const kf = scene.cameraKeyframes[selectedCameraIndex]!;
+
+  function numberField(label: string, value: number, onInput: (v: number) => void, step = 0.1): HTMLLabelElement {
+    const wrap = document.createElement('label');
+    wrap.className = 'ctrl-label';
+    wrap.textContent = label + ' ';
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.step = String(step);
+    input.value = String(value);
+    input.className = 'ctrl-select w-20';
+    input.addEventListener('input', () => { onInput(parseFloat(input.value)); refreshTimeline(); });
+    wrap.appendChild(input);
+    return wrap;
+  }
+
+  cameraInspectorEl.appendChild(numberField('q', kf.q, (v) => { kf.q = v; }));
+  cameraInspectorEl.appendChild(numberField('r', kf.r, (v) => { kf.r = v; }));
+  cameraInspectorEl.appendChild(numberField('zoom', kf.zoom, (v) => { kf.zoom = v; }, 0.05));
+  cameraInspectorEl.appendChild(numberField('duration', kf.duration ?? 0, (v) => { kf.duration = v; }, 0.1));
+
+  const easingSelect = document.createElement('select');
+  easingSelect.className = 'ctrl-select';
+  for (const opt of ['easeInOut', 'linear', 'easeIn', 'easeOut']) {
+    const o = document.createElement('option');
+    o.value = opt; o.textContent = opt;
+    if ((kf.easing ?? 'easeInOut') === opt) o.selected = true;
+    easingSelect.appendChild(o);
+  }
+  easingSelect.addEventListener('change', () => {
+    kf.easing = easingSelect.value as CameraKeyframe['easing'];
+    refreshTimeline();
+  });
+  cameraInspectorEl.appendChild(easingSelect);
+}
+
+function renderModeInspector(): void {
+  modeInspectorEl.innerHTML = '';
+  if (!scene || selectedModeIndex < 0 || selectedModeIndex >= scene.modeKeyframes.length) return;
+  const kf = scene.modeKeyframes[selectedModeIndex]!;
+
+  const wrap = document.createElement('label');
+  wrap.className = 'ctrl-label';
+  wrap.textContent = 'modeOffset ';
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.step = '1';
+  input.value = String(kf.modeOffset);
+  input.className = 'ctrl-select w-20';
+  input.addEventListener('input', () => { kf.modeOffset = parseInt(input.value, 10) || 0; refreshTimeline(); });
+  wrap.appendChild(input);
+  modeInspectorEl.appendChild(wrap);
+}
+
+cameraAddBtn.addEventListener('click', () => {
+  if (!scene) return;
+  const prev = interpolateCamera(scene.cameraKeyframes, scrubTime) ?? DEFAULT_CAMERA;
+  scene.cameraKeyframes.push({ t: scrubTime, q: prev.q, r: prev.r, zoom: prev.zoom, duration: 1, easing: 'easeInOut' });
+  scene.cameraKeyframes.sort((a, b) => a.t - b.t);
+  selectedCameraIndex = scene.cameraKeyframes.findIndex((k) => k.t === scrubTime);
+  refreshTimeline();
+});
+
+cameraDelBtn.addEventListener('click', () => {
+  if (!scene || selectedCameraIndex < 0) return;
+  scene.cameraKeyframes.splice(selectedCameraIndex, 1);
+  selectedCameraIndex = -1;
+  refreshTimeline();
+});
+
+modeAddBtn.addEventListener('click', () => {
+  if (!scene) return;
+  scene.modeKeyframes.push({ t: scrubTime, modeOffset: 0 });
+  scene.modeKeyframes.sort((a, b) => a.t - b.t);
+  selectedModeIndex = scene.modeKeyframes.findIndex((k) => k.t === scrubTime);
+  refreshTimeline();
+});
+
+modeDelBtn.addEventListener('click', () => {
+  if (!scene || selectedModeIndex < 0) return;
+  scene.modeKeyframes.splice(selectedModeIndex, 1);
+  selectedModeIndex = -1;
+  refreshTimeline();
+});
+
+scrubInput.addEventListener('input', () => {
+  scrubTime = parseFloat(scrubInput.value);
+  updatePreview();
+});
+
+function updatePreview(): void {
+  const duration = sceneDuration();
+  scrubTimeEl.textContent = `${scrubTime.toFixed(1)} / ${duration.toFixed(1)}s`;
+  cameraTrack.setPlayhead(scrubTime);
+  modeTrack.setPlayhead(scrubTime);
+  if (!scene) return;
+  const camera = interpolateCamera(scene.cameraKeyframes, scrubTime);
+  renderer.render({
+    tuning: TUNINGS[String(scene.tuning.edo)]!,
+    layout: LAYOUT_PRESETS[String(scene.tuning.edo)]!,
+    activeKeys: new Set(),
+    activeDegrees: new Set(),
+    inModePitchClasses: null,
+    keyWindow: PREVIEW_KEY_WINDOW,
+    colorMode: 'spiral',
+    showKbGuide: false,
+    camera,
+  });
+}
 
 function updateRenderButton(): void {
   renderBtn.disabled = !(scene && events);
@@ -35,6 +207,7 @@ sceneFileInput.addEventListener('change', async () => {
     statusEl.textContent = `Scene error: ${err instanceof Error ? err.message : String(err)}`;
   }
   updateRenderButton();
+  refreshTimeline();
 });
 
 midiFileInput.addEventListener('change', async () => {
@@ -48,6 +221,7 @@ midiFileInput.addEventListener('change', async () => {
     statusEl.textContent = `MIDI error: ${err instanceof Error ? err.message : String(err)}`;
   }
   updateRenderButton();
+  refreshTimeline();
 });
 
 renderBtn.addEventListener('click', () => {

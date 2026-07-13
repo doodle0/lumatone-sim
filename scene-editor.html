@@ -33,6 +33,30 @@
     </div>
   </div>
 
+  <div id="timeline" class="flex-none flex flex-col gap-2 px-4 py-3 bg-surface border-b border-border">
+    <div class="flex items-center gap-3">
+      <span class="ctrl-label w-16">Time</span>
+      <input type="range" id="scrub" min="0" max="1" step="0.01" value="0" class="ctrl-range flex-1">
+      <span id="scrub-time" class="text-fg/label text-sm tabular-nums w-24 text-right">0.0 / 0.0s</span>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <span class="ctrl-label w-16">Camera</span>
+      <div id="camera-track" class="flex-1"></div>
+      <button id="camera-add-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer">+ kf</button>
+      <button id="camera-del-btn" class="px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer">delete</button>
+    </div>
+    <div id="camera-inspector" class="flex items-center gap-3 pl-[4.75rem] text-sm"></div>
+
+    <div class="flex items-center gap-3">
+      <span class="ctrl-label w-16">Mode</span>
+      <div id="mode-track" class="flex-1"></div>
+      <button id="mode-add-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer">+ kf</button>
+      <button id="mode-del-btn" class="px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer">delete</button>
+    </div>
+    <div id="mode-inspector" class="flex items-center gap-3 pl-[4.75rem] text-sm"></div>
+  </div>
+
   <canvas id="preview-canvas" class="flex-1 block w-full min-h-0"></canvas>
   <script type="module" src="/src/sceneEditor.ts"></script>
 </body>
