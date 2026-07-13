@@ -15,10 +15,11 @@ interface Voice {
   osc: OscillatorNode;
   gain: GainNode;
   released: boolean;
+  release: number;
 }
 
 export interface AudioEngine {
-  noteOn(id: string, frequency: number): void;
+  noteOn(id: string, frequency: number, overrides?: { adsr?: ADSR; waveform?: WaveType }): void;
   noteOff(id: string): void;
   releaseAll(): void;
   setADSR(adsr: Partial<ADSR>): void;
@@ -49,26 +50,26 @@ export function createAudioEngine(): AudioEngine {
     return ctx;
   }
 
-  function startVoice(id: string, frequency: number): void {
+  function startVoice(id: string, frequency: number, voiceAdsr: ADSR, voiceWave: WaveType): void {
     const context = ensureCtx();
     const now = context.currentTime;
 
     const osc = context.createOscillator();
-    osc.type = waveType;
+    osc.type = voiceWave;
     osc.frequency.value = frequency;
 
     const gain = context.createGain();
     gain.gain.setValueAtTime(0, now);
     // Attack
-    gain.gain.linearRampToValueAtTime(1.0, now + adsr.attack);
+    gain.gain.linearRampToValueAtTime(1.0, now + voiceAdsr.attack);
     // Decay to sustain
-    gain.gain.setTargetAtTime(adsr.sustain, now + adsr.attack, adsr.decay / 3);
+    gain.gain.setTargetAtTime(voiceAdsr.sustain, now + voiceAdsr.attack, voiceAdsr.decay / 3);
 
     osc.connect(gain);
     gain.connect(masterGain!);
     osc.start(now);
 
-    voices.set(id, { osc, gain, released: false });
+    voices.set(id, { osc, gain, released: false, release: voiceAdsr.release });
   }
 
   function stopVoice(id: string): void {
@@ -80,13 +81,13 @@ export function createAudioEngine(): AudioEngine {
     const now = context.currentTime;
     voice.gain.gain.cancelScheduledValues(now);
     voice.gain.gain.setValueAtTime(voice.gain.gain.value, now);
-    voice.gain.gain.linearRampToValueAtTime(0, now + adsr.release);
-    voice.osc.stop(now + adsr.release + 0.01);
+    voice.gain.gain.linearRampToValueAtTime(0, now + voice.release);
+    voice.osc.stop(now + voice.release + 0.01);
     voice.osc.onended = () => { voices.delete(id); };
   }
 
   return {
-    noteOn(id: string, frequency: number): void {
+    noteOn(id: string, frequency: number, overrides?: { adsr?: ADSR; waveform?: WaveType }): void {
       const existing = voices.get(id);
       if (existing) {
         // Initiate release ramp if not already releasing.
@@ -96,7 +97,7 @@ export function createAudioEngine(): AudioEngine {
         existing.osc.onended = null;
         voices.delete(id);
       }
-      startVoice(id, frequency);
+      startVoice(id, frequency, overrides?.adsr ?? adsr, overrides?.waveform ?? waveType);
     },
 
     noteOff(id: string): void {
