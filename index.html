@@ -63,6 +63,39 @@
       </span>
     </div>
 
+    <!-- Row 1.5: Filter envelope -->
+    <div class="flex items-center gap-4 px-4 py-2 flex-wrap border-t border-border">
+      <label class="ctrl-label">
+        Preset
+        <select id="preset-select" class="ctrl-select"></select>
+      </label>
+
+      <div class="flex items-center gap-3 border-l border-border pl-4">
+        <label class="ctrl-label">fA
+          <input type="range" id="filter-attack" min="0" max="2" step="0.001" value="0" class="ctrl-range">
+        </label>
+        <label class="ctrl-label">fD
+          <input type="range" id="filter-decay" min="0" max="2" step="0.01" value="0" class="ctrl-range">
+        </label>
+        <label class="ctrl-label">fS
+          <input type="range" id="filter-sustain" min="0" max="1" step="0.01" value="1" class="ctrl-range">
+        </label>
+        <label class="ctrl-label">fR
+          <input type="range" id="filter-release" min="0" max="2" step="0.01" value="0" class="ctrl-range">
+        </label>
+      </div>
+
+      <label class="ctrl-label border-l border-border pl-4">
+        Base <input type="range" id="filter-base" min="80" max="8000" step="1" value="2000" class="ctrl-range">
+      </label>
+      <label class="ctrl-label">
+        Depth <input type="range" id="filter-depth" min="-4" max="6" step="0.1" value="0" class="ctrl-range">
+      </label>
+      <label class="ctrl-label">
+        Res <input type="range" id="filter-resonance" min="0.1" max="20" step="0.1" value="0.71" class="ctrl-range">
+      </label>
+    </div>
+
     <!-- Row 2: Visual settings -->
     <div class="flex items-center gap-4 px-4 py-2 flex-wrap border-t border-border">
       <label class="ctrl-label">

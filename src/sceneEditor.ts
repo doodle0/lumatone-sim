@@ -6,6 +6,7 @@ import { parseScene, createDefaultScene } from './scene/scene.ts';
 import type { Scene } from './scene/scene.ts';
 import type { ChannelConfig } from './scene/scene.ts';
 import { DEFAULT_CHANNEL_CONFIG } from './scene/scene.ts';
+import { SYNTH_PRESETS } from './audio/synthPresets.ts';
 import { parseMidiFile, midiDuration, parseMidiChannelPans } from './io/midiFile.ts';
 import type { MidiEvent } from './io/midiFile.ts';
 import { createScenePlayer, activeDegreesAt } from './scene/scenePlayer.ts';
@@ -52,6 +53,22 @@ const modeAddBtn        = document.getElementById('mode-add-btn')     as HTMLBut
 const modeDelBtn        = document.getElementById('mode-del-btn')     as HTMLButtonElement;
 const channelsTableEl = document.getElementById('channels-table')  as HTMLDivElement;
 const channelAddBtn   = document.getElementById('channel-add-btn') as HTMLButtonElement;
+const channelsFoldBtn   = document.getElementById('channels-fold-btn') as HTMLButtonElement;
+const channelsSummaryEl = document.getElementById('channels-summary') as HTMLSpanElement;
+let channelsExpanded = true;
+const expandedFilterRows = new Set<number>();
+
+channelsFoldBtn.addEventListener('click', () => {
+  channelsExpanded = !channelsExpanded;
+  renderChannelsTable();
+});
+
+function updateChannelsHeader(): void {
+  const count = scene ? Object.keys(scene.channels).length : 0;
+  channelsFoldBtn.textContent = `${channelsExpanded ? '▾' : '▸'} Channels`;
+  channelsFoldBtn.setAttribute('aria-expanded', String(channelsExpanded));
+  channelsSummaryEl.textContent = channelsExpanded ? '' : `(${count} channel${count === 1 ? '' : 's'})`;
+}
 const saveSceneBtn    = document.getElementById('save-scene-btn')  as HTMLButtonElement;
 
 const cameraTrack = createTimelineTrack<CameraKeyframe>(cameraTrackEl,
@@ -94,17 +111,43 @@ function refreshTimeline(): void {
 
 function renderChannelsTable(): void {
   channelsTableEl.innerHTML = '';
-  if (!scene) return;
+  updateChannelsHeader();
+  if (!scene || !channelsExpanded) return;
 
   for (const [key, config] of Object.entries(scene.channels)) {
     const channel = Number(key);
+    const rowWrap = document.createElement('div');
+    rowWrap.className = 'flex flex-col gap-1 pb-1 border-b border-border/50 last:border-b-0';
+
     const row = document.createElement('div');
-    row.className = 'flex items-center gap-3 text-sm';
+    row.className = 'flex items-center gap-3 text-sm flex-wrap';
 
     const label = document.createElement('span');
     label.className = 'ctrl-label w-20';
     label.textContent = `Ch ${channel}`;
     row.appendChild(label);
+
+    const presetSelect = document.createElement('select');
+    presetSelect.className = 'ctrl-select';
+    const presetPlaceholder = document.createElement('option');
+    presetPlaceholder.value = '';
+    presetPlaceholder.textContent = 'Preset…';
+    presetSelect.appendChild(presetPlaceholder);
+    for (const preset of SYNTH_PRESETS) {
+      const o = document.createElement('option');
+      o.value = preset.name;
+      o.textContent = preset.name;
+      presetSelect.appendChild(o);
+    }
+    presetSelect.addEventListener('change', () => {
+      const preset = SYNTH_PRESETS.find((p) => p.name === presetSelect.value);
+      if (!preset) return;
+      config.waveform = preset.waveform;
+      config.adsr = { ...preset.adsr };
+      config.filterEnvelope = { ...preset.filterEnvelope, adsr: { ...preset.filterEnvelope.adsr } };
+      renderChannelsTable();
+    });
+    row.appendChild(presetSelect);
 
     const waveSelect = document.createElement('select');
     waveSelect.className = 'ctrl-select';
@@ -149,6 +192,17 @@ function renderChannelsTable(): void {
     panWrap.appendChild(panInput);
     row.appendChild(panWrap);
 
+    const filterToggleBtn = document.createElement('button');
+    filterToggleBtn.type = 'button';
+    filterToggleBtn.className = 'text-fg/label text-xs cursor-pointer select-none px-1';
+    filterToggleBtn.textContent = expandedFilterRows.has(channel) ? '▾ Filter' : '▸ Filter';
+    filterToggleBtn.addEventListener('click', () => {
+      if (expandedFilterRows.has(channel)) expandedFilterRows.delete(channel);
+      else expandedFilterRows.add(channel);
+      renderChannelsTable();
+    });
+    row.appendChild(filterToggleBtn);
+
     const delBtn = document.createElement('button');
     delBtn.textContent = 'remove';
     delBtn.className = 'px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer';
@@ -158,7 +212,75 @@ function renderChannelsTable(): void {
     });
     row.appendChild(delBtn);
 
-    channelsTableEl.appendChild(row);
+    rowWrap.appendChild(row);
+
+    if (expandedFilterRows.has(channel)) {
+      const filterRow = document.createElement('div');
+      filterRow.className = 'flex items-center gap-3 text-sm flex-wrap pl-20';
+
+      const baseWrap = document.createElement('label');
+      baseWrap.className = 'ctrl-label';
+      baseWrap.textContent = 'Base ';
+      const baseInput = document.createElement('input');
+      baseInput.type = 'number';
+      baseInput.step = '10';
+      baseInput.min = '20';
+      baseInput.value = String(config.filterEnvelope.baseCutoff);
+      baseInput.className = 'ctrl-select w-20';
+      baseInput.addEventListener('input', () => {
+        config.filterEnvelope.baseCutoff = parseFloat(baseInput.value) || 0;
+      });
+      baseWrap.appendChild(baseInput);
+      filterRow.appendChild(baseWrap);
+
+      const depthWrap = document.createElement('label');
+      depthWrap.className = 'ctrl-label';
+      depthWrap.textContent = 'Depth ';
+      const depthInput = document.createElement('input');
+      depthInput.type = 'number';
+      depthInput.step = '0.1';
+      depthInput.value = String(config.filterEnvelope.depthOctaves);
+      depthInput.className = 'ctrl-select w-16';
+      depthInput.addEventListener('input', () => {
+        config.filterEnvelope.depthOctaves = parseFloat(depthInput.value) || 0;
+      });
+      depthWrap.appendChild(depthInput);
+      filterRow.appendChild(depthWrap);
+
+      const qWrap = document.createElement('label');
+      qWrap.className = 'ctrl-label';
+      qWrap.textContent = 'Q ';
+      const qInput = document.createElement('input');
+      qInput.type = 'number';
+      qInput.step = '0.1';
+      qInput.min = '0.1';
+      qInput.max = '20';
+      qInput.value = String(config.filterEnvelope.resonance);
+      qInput.className = 'ctrl-select w-16';
+      qInput.addEventListener('input', () => {
+        config.filterEnvelope.resonance = parseFloat(qInput.value) || 0.1;
+      });
+      qWrap.appendChild(qInput);
+      filterRow.appendChild(qWrap);
+
+      for (const field of ['attack', 'decay', 'sustain', 'release'] as const) {
+        const wrap = document.createElement('label');
+        wrap.className = 'ctrl-label';
+        wrap.textContent = 'f' + field[0]!.toUpperCase() + ' ';
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.step = '0.01';
+        input.value = String(config.filterEnvelope.adsr[field]);
+        input.className = 'ctrl-select w-16';
+        input.addEventListener('input', () => { config.filterEnvelope.adsr[field] = parseFloat(input.value) || 0; });
+        wrap.appendChild(input);
+        filterRow.appendChild(wrap);
+      }
+
+      rowWrap.appendChild(filterRow);
+    }
+
+    channelsTableEl.appendChild(rowWrap);
   }
 }
 
@@ -170,6 +292,7 @@ channelAddBtn.addEventListener('click', () => {
     waveform: DEFAULT_CHANNEL_CONFIG.waveform,
     adsr: { ...DEFAULT_CHANNEL_CONFIG.adsr },
     pan: DEFAULT_CHANNEL_CONFIG.pan,
+    filterEnvelope: { ...DEFAULT_CHANNEL_CONFIG.filterEnvelope, adsr: { ...DEFAULT_CHANNEL_CONFIG.filterEnvelope.adsr } },
   };
   renderChannelsTable();
 });
@@ -343,6 +466,7 @@ midiFileInput.addEventListener('change', async () => {
         waveform: DEFAULT_CHANNEL_CONFIG.waveform,
         adsr: { ...DEFAULT_CHANNEL_CONFIG.adsr },
         pan: pans[channel] ?? DEFAULT_CHANNEL_CONFIG.pan,
+        filterEnvelope: { ...DEFAULT_CHANNEL_CONFIG.filterEnvelope, adsr: { ...DEFAULT_CHANNEL_CONFIG.filterEnvelope.adsr } },
       };
     }
   } catch (err) {

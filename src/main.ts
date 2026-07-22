@@ -3,7 +3,9 @@ import { TUNINGS } from './core/tuningEngine.ts';
 import { LAYOUT_PRESETS } from './core/layout.ts';
 import { getDegree } from './core/layout.ts';
 import { keyCoords } from './core/hexGrid.ts';
-import { createAudioEngine } from './audio/audioEngine.ts';
+import { createAudioEngine, type WaveType } from './audio/audioEngine.ts';
+import { SYNTH_PRESETS } from './audio/synthPresets.ts';
+import type { SynthPreset } from './audio/synthPresets.ts';
 import { createRenderer } from './render/renderer.ts';
 import { buildKeyboardWindow, keyWindowIndex } from './input/keyboardInput.ts';
 import { createMidiInput, midiToDegree } from './input/midiInput.ts';
@@ -253,7 +255,7 @@ tuningSelect.addEventListener('change', () => {
 
 const waveSelect = document.getElementById('wave-select') as HTMLSelectElement;
 waveSelect.addEventListener('change', () => {
-  audio.setWaveform(waveSelect.value as OscillatorType);
+  audio.setWaveform(waveSelect.value as WaveType);
 });
 
 function bindRange(id: string, fn: (v: number) => void): void {
@@ -266,6 +268,50 @@ bindRange('decay',    (v) => audio.setADSR({ decay: v }));
 bindRange('sustain',  (v) => audio.setADSR({ sustain: v }));
 bindRange('release',  (v) => audio.setADSR({ release: v }));
 bindRange('volume',   (v) => audio.setMasterVolume(v));
+
+bindRange('filter-attack',    (v) => audio.setFilterEnvelope({ adsr: { attack: v } }));
+bindRange('filter-decay',     (v) => audio.setFilterEnvelope({ adsr: { decay: v } }));
+bindRange('filter-sustain',   (v) => audio.setFilterEnvelope({ adsr: { sustain: v } }));
+bindRange('filter-release',   (v) => audio.setFilterEnvelope({ adsr: { release: v } }));
+bindRange('filter-base',      (v) => audio.setFilterEnvelope({ baseCutoff: v }));
+bindRange('filter-depth',     (v) => audio.setFilterEnvelope({ depthOctaves: v }));
+bindRange('filter-resonance', (v) => audio.setFilterEnvelope({ resonance: v }));
+
+const presetSelect = document.getElementById('preset-select') as HTMLSelectElement;
+for (const preset of SYNTH_PRESETS) {
+  const o = document.createElement('option');
+  o.value = preset.name;
+  o.textContent = preset.name;
+  presetSelect.appendChild(o);
+}
+
+function applyPreset(preset: SynthPreset): void {
+  waveSelect.value = preset.waveform;
+  audio.setWaveform(preset.waveform);
+
+  (document.getElementById('attack')  as HTMLInputElement).value = String(preset.adsr.attack);
+  (document.getElementById('decay')   as HTMLInputElement).value = String(preset.adsr.decay);
+  (document.getElementById('sustain') as HTMLInputElement).value = String(preset.adsr.sustain);
+  (document.getElementById('release') as HTMLInputElement).value = String(preset.adsr.release);
+  audio.setADSR(preset.adsr);
+
+  (document.getElementById('filter-attack')    as HTMLInputElement).value = String(preset.filterEnvelope.adsr.attack);
+  (document.getElementById('filter-decay')     as HTMLInputElement).value = String(preset.filterEnvelope.adsr.decay);
+  (document.getElementById('filter-sustain')   as HTMLInputElement).value = String(preset.filterEnvelope.adsr.sustain);
+  (document.getElementById('filter-release')   as HTMLInputElement).value = String(preset.filterEnvelope.adsr.release);
+  (document.getElementById('filter-base')      as HTMLInputElement).value = String(preset.filterEnvelope.baseCutoff);
+  (document.getElementById('filter-depth')     as HTMLInputElement).value = String(preset.filterEnvelope.depthOctaves);
+  (document.getElementById('filter-resonance') as HTMLInputElement).value = String(preset.filterEnvelope.resonance);
+  audio.setFilterEnvelope(preset.filterEnvelope);
+}
+
+presetSelect.addEventListener('change', () => {
+  const preset = SYNTH_PRESETS.find((p) => p.name === presetSelect.value);
+  if (preset) applyPreset(preset);
+});
+
+applyPreset(SYNTH_PRESETS[0]!);
+
 bindRange('hex-size', (v) => { renderer.setHexSize(v); activeKeys.clear(); audio.releaseAll(); });
 
 const colorSelect = document.getElementById('color-select') as HTMLSelectElement;

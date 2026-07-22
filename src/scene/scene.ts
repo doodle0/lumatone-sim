@@ -1,7 +1,7 @@
 // Scene JSON schema: a MIDI-driven timeline of camera and mode-window keyframes,
 // plus static per-channel instrument config. See docs/superpowers/specs/2026-07-13-scene-editor-design.md.
 
-import type { ADSR, WaveType } from '../audio/audioEngine.ts';
+import type { ADSR, WaveType, FilterEnvelope } from '../audio/audioEngine.ts';
 import type { CameraKeyframe } from '../render/camera.ts';
 import { build12ToEdoMap } from '../core/spiralFifths.ts';
 
@@ -30,6 +30,7 @@ export interface ChannelConfig {
   adsr: ADSR;
   /** Stereo position in [-1, 1] (-1 = full left, 0 = center, 1 = full right). */
   pan: number;
+  filterEnvelope: FilterEnvelope;
 }
 
 export interface Scene {
@@ -45,6 +46,12 @@ export const DEFAULT_CHANNEL_CONFIG: ChannelConfig = {
   waveform: 'triangle',
   adsr: { attack: 0.01, decay: 0.1, sustain: 0.6, release: 0.3 },
   pan: 0,
+  filterEnvelope: {
+    adsr: { attack: 0, decay: 0, sustain: 1, release: 0 },
+    baseCutoff: 2000,
+    depthOctaves: 0,
+    resonance: Math.SQRT1_2,
+  },
 };
 
 /** Config for a channel, falling back to the default if the scene doesn't configure it. */
@@ -75,6 +82,22 @@ function isValidAdsr(v: unknown): v is ADSR {
     && typeof a.decay === 'number'
     && typeof a.sustain === 'number'
     && typeof a.release === 'number';
+}
+
+function isValidFilterEnvelope(v: unknown): v is FilterEnvelope {
+  const f = v as Partial<FilterEnvelope> | undefined;
+  return !!f
+    && isValidAdsr(f.adsr)
+    && typeof f.baseCutoff === 'number'
+    && typeof f.depthOctaves === 'number'
+    && typeof f.resonance === 'number';
+}
+
+function defaultFilterEnvelope(): FilterEnvelope {
+  return {
+    ...DEFAULT_CHANNEL_CONFIG.filterEnvelope,
+    adsr: { ...DEFAULT_CHANNEL_CONFIG.filterEnvelope.adsr },
+  };
 }
 
 function hasNumericT<T extends { t: unknown }>(v: T): v is T & { t: number } {
@@ -108,13 +131,18 @@ export function parseScene(json: string): Scene {
         waveform: DEFAULT_CHANNEL_CONFIG.waveform,
         adsr: { ...DEFAULT_CHANNEL_CONFIG.adsr },
         pan: DEFAULT_CHANNEL_CONFIG.pan,
+        filterEnvelope: defaultFilterEnvelope(),
       };
       continue;
+    }
+    if (!isValidFilterEnvelope(v.filterEnvelope)) {
+      console.warn(`Scene channel ${key}: missing/invalid filterEnvelope, using default (no sweep)`);
     }
     channels[channel] = {
       waveform: v.waveform as WaveType,
       adsr: v.adsr,
       pan: typeof v.pan === 'number' ? v.pan : DEFAULT_CHANNEL_CONFIG.pan,
+      filterEnvelope: isValidFilterEnvelope(v.filterEnvelope) ? v.filterEnvelope : defaultFilterEnvelope(),
     };
   }
 

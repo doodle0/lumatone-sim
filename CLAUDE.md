@@ -1,6 +1,6 @@
 # Lumatone Simulator
 
-Browser-based simulator for the Lumatone microtonal keyboard instrument. Pure TypeScript + Vite. Zero external runtime dependencies, with one deliberate exception: `@tonejs/midi` (MIDI file parsing for the scene editor).
+Browser-based simulator for the Lumatone microtonal keyboard instrument. Pure TypeScript + Vite. Two deliberate exceptions to an otherwise dependency-free runtime: `@tonejs/midi` (MIDI file parsing for the scene editor) and `tone` (the Web Audio synth engine — see "Audio engine").
 
 ## Commands
 
@@ -28,7 +28,8 @@ Files are organized in engine layers, each depending only on the layers below it
 | `src/core/spiralFifths.ts` | Spiral-of-fifths note naming for any EDO. Note names, accidental counts, `kToName`, `build12ToEdoMap`. |
 | `src/input/keyboardInput.ts` | QWERTY → hex position mapping. Shiftable keyboard window. |
 | `src/input/midiInput.ts` | Web MIDI input. Maps MIDI notes to EDO degrees via `midiToDegree`; uses `build12ToEdoMap` for enharmonic mapping. |
-| `src/audio/audioEngine.ts` | Polyphonic Web Audio API synth. Per-voice oscillator + ADSR gain envelope, filter, and panner; master limiter. |
+| `src/audio/audioEngine.ts` | Polyphonic Tone.js synth. Per-voice `MonoSynth` (osc + amp ADSR + filter + filter envelope) + panner; master limiter. |
+| `src/audio/synthPresets.ts` | Named synth presets (waveform + amp ADSR + filter envelope), selectable in the live page and scene editor. |
 | `src/render/renderer.ts` | Canvas 2D rendering. Offscreen static layer + per-frame active-key overlay. OKLCH colours. |
 | `src/render/camera.ts` | Scripted camera for scene playback: `{q, r, zoom}` state, hold-then-ease keyframe interpolation. |
 | `src/io/midiFile.ts` | Parses a Standard MIDI File (via `@tonejs/midi`) into a flat, time-sorted list of note on/off events. |
@@ -165,19 +166,20 @@ QWERTY rows map to a 4-row window into the axial grid (12 keys on rows 0–1, 11
 
 ## Audio engine
 
-- Polyphonic, one `OscillatorNode + GainNode` per active voice.
-- ADSR envelope (attack, decay, sustain, release) applied per voice; peak (attack target) and sustain level both scale with note velocity (`noteOn`'s `velocity` override, `0..1`).
+- Built on [Tone.js](https://tonejs.github.io/): one `Tone.MonoSynth` (oscillator + amp envelope + filter + filter envelope) plus one `Tone.Panner` per active voice, created in `noteOn` and disposed after its release tail in `noteOff`. Voices are keyed by the caller-supplied `id` (not by pitch), so two different `id`s can share a frequency and be released independently — this is why the engine builds its own per-voice `MonoSynth` instances rather than using `Tone.PolySynth`'s internal (pitch-keyed) voice pool.
+- Amp ADSR envelope (attack, decay, sustain, release) applied per voice; peak (attack target) and sustain level both scale with note velocity (`noteOn`'s `velocity` override, `0..1`, passed straight through to `MonoSynth.triggerAttack`'s velocity parameter).
+- Filter envelope: an independent attack/decay/sustain/release sweeps the per-voice lowpass filter's cutoff from `baseCutoff` (Hz) up to `baseCutoff × 2^depthOctaves` at the envelope's attack peak (`depthOctaves` can be negative to close instead of open); sustain interpolates in the same log/octave space. Resonance (`Q`) is static per voice, not enveloped. Configurable globally on the interactive page and per-channel in the scene editor (see "Scene editor").
 - Waveforms: sine, triangle, sawtooth, square.
-- Per-voice signal chain: `osc → gain (ADSR×velocity) → lowpass filter → StereoPannerNode → masterGain`. The lowpass (2kHz cutoff, Q = 1/√2 Butterworth) tames high harmonics, especially on sawtooth/square. `pan` (`-1`=left … `1`=right, default 0) is per-`noteOn` — scene playback passes each channel's configured pan (see "Scene editor"); the interactive page leaves it centered.
-- Master bus: `masterGain → limiter (DynamicsCompressorNode) → destination`. The limiter (threshold −3dB, ratio 20:1, knee 0, attack 3ms, release 250ms) keeps the summed output of many simultaneous voices/channels from clipping, since per-voice peak gain alone doesn't bound that. `getMasterOutput()` returns the limiter (post-master-gain, pre-destination) — this is the tap point `recordingEngine` uses.
-- `AudioContext` created lazily on first note (satisfies browser autoplay policy).
+- Per-voice signal chain: `MonoSynth (osc → amp envelope → filter × filter envelope) → Panner → masterGain`. The filter defaults to a 2kHz cutoff, Q = 1/√2 (Butterworth, no resonant peak) — matches the previous fixed-filter behavior when no filter envelope/resonance is configured. `pan` (`-1`=left … `1`=right, default 0) is per-`noteOn` — scene playback passes each channel's configured pan (see "Scene editor"); the interactive page leaves it centered.
+- Master bus: `masterGain (Tone.Gain) → limiter (Tone.Compressor) → destination`. The limiter (threshold −3dB, ratio 20:1, knee 0, attack 3ms, release 250ms) keeps the summed output of many simultaneous voices/channels from clipping, since per-voice peak gain alone doesn't bound that. `getMasterOutput()` returns the limiter (post-master-gain, pre-destination) — this is the tap point `recordingEngine` uses.
+- `AudioContext` (Tone's shared context) is resumed (`Tone.start()`) lazily on first note (satisfies browser autoplay policy).
 
 ## Scene editor
 
 `scene-editor.html` (`src/sceneEditor.ts`) authors and renders MIDI-driven "scenes" for educational microtonal-scale videos — separate from the interactive performance page (`index.html`/`main.ts`).
 
 - A **scene** = one MIDI file + one keyframe timeline = one rendered `.webm` output. Multiple scenes are assembled into a full video by hand, outside the app.
-- **Scene JSON** (`src/scene/scene.ts`): `{ name, midiFile, tuning: { edo }, channels: Record<midiChannel, { waveform, adsr, pan }>, cameraKeyframes, modeKeyframes }`. `tuning.edo` is fixed for the whole scene; per-channel `waveform`/`adsr`/`pan` is static for the whole scene (not keyframable). `pan` (`-1`=left … `1`=right) is auto-seeded per channel from the MIDI file's own Pan CC (#10) when a MIDI file is loaded (`parseMidiChannelPans` in `src/io/midiFile.ts`), editable in the Channels table.
+- **Scene JSON** (`src/scene/scene.ts`): `{ name, midiFile, tuning: { edo }, channels: Record<midiChannel, { waveform, adsr, pan, filterEnvelope }>, cameraKeyframes, modeKeyframes }`. `tuning.edo` is fixed for the whole scene; per-channel `waveform`/`adsr`/`pan`/`filterEnvelope` is static for the whole scene (not keyframable). `pan` (`-1`=left … `1`=right) is auto-seeded per channel from the MIDI file's own Pan CC (#10) when a MIDI file is loaded (`parseMidiChannelPans` in `src/io/midiFile.ts`), editable in the Channels table. Scene JSON predating `filterEnvelope` loads with a default no-sweep envelope (see "Audio engine"), so old scenes render identically. The Channels panel folds/unfolds as a whole (header toggle, showing a channel count when collapsed), and each row's filter fields fold independently behind a "Filter" twisty, since a fully expanded row has 13 fields.
 - **Camera keyframes** (`src/render/camera.ts`): `{ t, q, r, zoom, duration?, easing? }`. Hold-then-ease semantics — the camera holds at the previous keyframe's `(q, r, zoom)` until `duration` seconds before this keyframe's `t`, then eases in (`easing` ∈ `linear | easeIn | easeOut | easeInOut`, default `easeInOut`), arriving exactly at `t`.
 - **Mode keyframes**: `{ t, modeOffset }`. Instant switch (no easing — `modeOffset` is discrete). Only affects the pitch mapping of subsequent note-on events and the dimmed in-mode overlay — currently-sustained notes are *not* cut off or retuned (unlike the live Shift+←/→ control, which does release active notes since it's remapping notes the performer is still holding).
 - **Camera state** `{q, r, zoom}` (`src/render/camera.ts`) is the single source of truth for `renderer.ts`'s view transform — `RendererState.camera` (optional, defaults to `{q:0,r:0,zoom:1}`), effective hex size = `hexSize × zoom`, origin derived so `(q, r)` renders at canvas center. The interactive page never sets this field, so its behavior is unchanged.
@@ -195,3 +197,4 @@ Ideas noted in that spec but intentionally out of scope for the first pass: capt
 - **MIDI output**: send NoteOn/NoteOff to a Web MIDI output port.
 - **Panning**: drag the canvas to pan the infinite grid.
 - **Colour editor**: expose `spiralLch` breakpoints in the UI.
+- **Velocity-scaled filter envelope depth**: harder-played notes could open the filter further (peak = `baseCutoff * 2^(depthOctaves * velocity)`), mirroring how velocity already scales the amp envelope's peak/sustain. Deferred — filter envelope depth is currently fixed regardless of velocity.

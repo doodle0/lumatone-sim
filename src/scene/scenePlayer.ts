@@ -144,11 +144,11 @@ export function createScenePlayer(
         const key = `${ev.channel}:${ev.midiNote}`;
         if (ev.type === 'on') {
           const degree = midiToDegree(ev.midiNote, tuning.stepsPerOctave, modeOffset);
-          const { waveform, adsr, pan } = channelConfig(scene, ev.channel);
+          const { waveform, adsr, pan, filterEnvelope } = channelConfig(scene, ev.channel);
           activeNotes.set(key, { degree, channel: ev.channel, midiNote: ev.midiNote });
           activeDegrees.add(degree);
           const velocity = Math.max(0, Math.min(1, ev.velocity / 127));
-          audio.noteOn(voiceId(ev.channel, ev.midiNote), tuning.getFrequency(degree), { adsr, waveform, velocity, pan });
+          audio.noteOn(voiceId(ev.channel, ev.midiNote), tuning.getFrequency(degree), { adsr, waveform, velocity, pan, filterEnvelope });
         } else {
           const entry = activeNotes.get(key);
           if (entry) {
