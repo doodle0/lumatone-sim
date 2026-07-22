@@ -1,9 +1,9 @@
 // Scene JSON schema: a MIDI-driven timeline of camera and mode-window keyframes,
 // plus static per-channel instrument config. See docs/superpowers/specs/2026-07-13-scene-editor-design.md.
 
-import type { ADSR, WaveType } from './audioEngine.ts';
-import type { CameraKeyframe } from './camera.ts';
-import { build12ToEdoMap } from './spiralFifths.ts';
+import type { ADSR, WaveType } from '../audio/audioEngine.ts';
+import type { CameraKeyframe } from '../render/camera.ts';
+import { build12ToEdoMap } from '../core/spiralFifths.ts';
 
 export interface ModeKeyframe {
   t: number;

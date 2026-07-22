@@ -12,24 +12,30 @@ pnpm preview   # preview production build
 
 ## Architecture
 
-All modules use the factory-function pattern (no classes).
+Files are organized in engine layers, each depending only on the layers below it:
+
+1. **Foundation** (`src/core/`) — pure tuning/geometry math, no browser APIs beyond types.
+2. **Subsystems** (`src/input/`, `src/audio/`, `src/render/`) — independent engine services, each owning one concern, none aware of scenes or of each other.
+3. **IO / codec boundary** (`src/io/`) — adapters between engine data and external binary formats: `midiFile.ts` deserializes (`.mid` → events), `recordingEngine.ts` serializes (canvas + audio → WebM). Neither touches gameplay/scene logic.
+4. **Simulation** (`src/scene/`) — the scene/cutscene-sequencer system, built on the subsystems and IO layer.
+5. **Application** (`src/` root) — entry points that assemble the layers into something runnable: `main.ts` (the interactive performance page) and `sceneEditor.ts` (the scene editor/authoring tool), both factory-function modules (no classes, like everything else in the codebase).
 
 | File | Responsibility |
 |------|----------------|
-| `src/tuningEngine.ts` | EDO frequency calculation. Interface designed to accept JI later. |
-| `src/layout.ts` | Bosanquet-Wilson pitch mapping: `degree = q·qStep + r·rStep`. |
-| `src/hexGrid.ts` | Infinite axial hex grid, pixel geometry, grid rotation, visible-key culling. |
-| `src/spiralFifths.ts` | Spiral-of-fifths note naming for any EDO. Note names, accidental counts, `kToName`, `build12ToEdoMap`. |
-| `src/audioEngine.ts` | Polyphonic Web Audio API synth. Per-voice oscillator + ADSR gain envelope. |
-| `src/renderer.ts` | Canvas 2D rendering. Offscreen static layer + per-frame active-key overlay. OKLCH colours. |
-| `src/keyboardInput.ts` | QWERTY → hex position mapping. Shiftable keyboard window. |
-| `src/midiInput.ts` | Web MIDI input. Maps MIDI notes to EDO degrees via `midiToDegree`; uses `build12ToEdoMap` for enharmonic mapping. |
-| `src/recordingEngine.ts` | Records the canvas + audio output (via `audioEngine.getAudioContext()`/`getMasterOutput()`) into a WebM blob using `MediaRecorder`. |
-| `src/midiFile.ts` | Parses a Standard MIDI File (via `@tonejs/midi`) into a flat, time-sorted list of note on/off events. |
-| `src/camera.ts` | Scripted camera for scene playback: `{q, r, zoom}` state, hold-then-ease keyframe interpolation. |
-| `src/scene.ts` | Scene JSON schema (MIDI reference, per-channel ADSR/waveform, camera/mode keyframes) and parser. |
-| `src/scenePlayer.ts` | Scene playback orchestrator: schedules MIDI + camera + mode keyframes against a shared clock, drives `audioEngine`/`renderer`, auto-starts/stops `recordingEngine`. |
-| `src/timelineTrack.ts` | Generic draggable keyframe-track UI component, used by the scene editor's Camera and Mode tracks. |
+| `src/core/tuningEngine.ts` | EDO frequency calculation. Interface designed to accept JI later. |
+| `src/core/layout.ts` | Bosanquet-Wilson pitch mapping: `degree = q·qStep + r·rStep`. |
+| `src/core/hexGrid.ts` | Infinite axial hex grid, pixel geometry, grid rotation, visible-key culling. |
+| `src/core/spiralFifths.ts` | Spiral-of-fifths note naming for any EDO. Note names, accidental counts, `kToName`, `build12ToEdoMap`. |
+| `src/input/keyboardInput.ts` | QWERTY → hex position mapping. Shiftable keyboard window. |
+| `src/input/midiInput.ts` | Web MIDI input. Maps MIDI notes to EDO degrees via `midiToDegree`; uses `build12ToEdoMap` for enharmonic mapping. |
+| `src/audio/audioEngine.ts` | Polyphonic Web Audio API synth. Per-voice oscillator + ADSR gain envelope, filter, and panner; master limiter. |
+| `src/render/renderer.ts` | Canvas 2D rendering. Offscreen static layer + per-frame active-key overlay. OKLCH colours. |
+| `src/render/camera.ts` | Scripted camera for scene playback: `{q, r, zoom}` state, hold-then-ease keyframe interpolation. |
+| `src/io/midiFile.ts` | Parses a Standard MIDI File (via `@tonejs/midi`) into a flat, time-sorted list of note on/off events. |
+| `src/io/recordingEngine.ts` | Records the canvas + audio output (via `audioEngine.getAudioContext()`/`getMasterOutput()`) into a WebM blob using `MediaRecorder`. |
+| `src/scene/scene.ts` | Scene JSON schema (MIDI reference, per-channel ADSR/waveform, camera/mode keyframes) and parser. |
+| `src/scene/scenePlayer.ts` | Scene playback orchestrator: schedules MIDI + camera + mode keyframes against a shared clock, drives `audioEngine`/`renderer`, auto-starts/stops `recordingEngine`. |
+| `src/scene/timelineTrack.ts` | Generic draggable keyframe-track UI component, used by the scene editor's Camera and Mode tracks. |
 | `src/sceneEditor.ts` | Scene editor page (`scene-editor.html`): file loading, timeline editing, channel config, and Render. |
 | `src/main.ts` | Wires all modules for the interactive performance page (`index.html`); handles keyboard, mouse, MIDI, UI controls, resize, recording. |
 
@@ -171,12 +177,12 @@ QWERTY rows map to a 4-row window into the axial grid (12 keys on rows 0–1, 11
 `scene-editor.html` (`src/sceneEditor.ts`) authors and renders MIDI-driven "scenes" for educational microtonal-scale videos — separate from the interactive performance page (`index.html`/`main.ts`).
 
 - A **scene** = one MIDI file + one keyframe timeline = one rendered `.webm` output. Multiple scenes are assembled into a full video by hand, outside the app.
-- **Scene JSON** (`src/scene.ts`): `{ name, midiFile, tuning: { edo }, channels: Record<midiChannel, { waveform, adsr, pan }>, cameraKeyframes, modeKeyframes }`. `tuning.edo` is fixed for the whole scene; per-channel `waveform`/`adsr`/`pan` is static for the whole scene (not keyframable). `pan` (`-1`=left … `1`=right) is auto-seeded per channel from the MIDI file's own Pan CC (#10) when a MIDI file is loaded (`parseMidiChannelPans` in `src/midiFile.ts`), editable in the Channels table.
-- **Camera keyframes** (`src/camera.ts`): `{ t, q, r, zoom, duration?, easing? }`. Hold-then-ease semantics — the camera holds at the previous keyframe's `(q, r, zoom)` until `duration` seconds before this keyframe's `t`, then eases in (`easing` ∈ `linear | easeIn | easeOut | easeInOut`, default `easeInOut`), arriving exactly at `t`.
+- **Scene JSON** (`src/scene/scene.ts`): `{ name, midiFile, tuning: { edo }, channels: Record<midiChannel, { waveform, adsr, pan }>, cameraKeyframes, modeKeyframes }`. `tuning.edo` is fixed for the whole scene; per-channel `waveform`/`adsr`/`pan` is static for the whole scene (not keyframable). `pan` (`-1`=left … `1`=right) is auto-seeded per channel from the MIDI file's own Pan CC (#10) when a MIDI file is loaded (`parseMidiChannelPans` in `src/io/midiFile.ts`), editable in the Channels table.
+- **Camera keyframes** (`src/render/camera.ts`): `{ t, q, r, zoom, duration?, easing? }`. Hold-then-ease semantics — the camera holds at the previous keyframe's `(q, r, zoom)` until `duration` seconds before this keyframe's `t`, then eases in (`easing` ∈ `linear | easeIn | easeOut | easeInOut`, default `easeInOut`), arriving exactly at `t`.
 - **Mode keyframes**: `{ t, modeOffset }`. Instant switch (no easing — `modeOffset` is discrete). Only affects the pitch mapping of subsequent note-on events and the dimmed in-mode overlay — currently-sustained notes are *not* cut off or retuned (unlike the live Shift+←/→ control, which does release active notes since it's remapping notes the performer is still holding).
-- **Camera state** `{q, r, zoom}` (`src/camera.ts`) is the single source of truth for `renderer.ts`'s view transform — `RendererState.camera` (optional, defaults to `{q:0,r:0,zoom:1}`), effective hex size = `hexSize × zoom`, origin derived so `(q, r)` renders at canvas center. The interactive page never sets this field, so its behavior is unchanged.
+- **Camera state** `{q, r, zoom}` (`src/render/camera.ts`) is the single source of truth for `renderer.ts`'s view transform — `RendererState.camera` (optional, defaults to `{q:0,r:0,zoom:1}`), effective hex size = `hexSize × zoom`, origin derived so `(q, r)` renders at canvas center. The interactive page never sets this field, so its behavior is unchanged.
 - **Play vs. Render**: `scenePlayer.ts`'s `play()` runs the same MIDI/camera/mode clock as `render()` but skips `recordingEngine` entirely (audible preview only) and starts from the scrub head (`startAt`) instead of always `t=0`; `stop()` cancels either early. Render always renders the full scene from `t=0`, recording throughout, and auto-downloads the WebM when the MIDI ends (+ 1s release tail).
-- **Scrub preview**: dragging the Time slider (or the ←/→/Home/End shortcuts) calls `updatePreview()`, which renders a static snapshot at that timestamp — camera position (`interpolateCamera`), the in-mode overlay for whatever mode keyframe is active at that time (`modeOffsetAt`/`inModePitchClassesFor`), and which notes are actually sounding then (`activeDegreesAt`, all in `src/scene.ts`/`src/scenePlayer.ts`) — without playing audio.
+- **Scrub preview**: dragging the Time slider (or the ←/→/Home/End shortcuts) calls `updatePreview()`, which renders a static snapshot at that timestamp — camera position (`interpolateCamera`), the in-mode overlay for whatever mode keyframe is active at that time (`modeOffsetAt`/`inModePitchClassesFor`), and which notes are actually sounding then (`activeDegreesAt`, all in `src/scene/scene.ts`/`src/scene/scenePlayer.ts`) — without playing audio.
 - **Keyboard shortcuts** (scene editor only): `Space` toggles Play/Stop and `Esc` stops — both are global and always win, regardless of focus, so neither ever falls through to a focused element's own native behavior (a button click, a `<select>` popping open, a file input's OS picker). `←`/`→` scrub 0.1s (`Shift` = 1s), `Home`/`End` jump to the start/end of the scene, and `Delete`/`Backspace` removes the selected Camera or Mode keyframe — these back off while a genuinely-editable control (number field, select, button, contenteditable) has focus, except the `#scrub` range input itself, which they take over cleanly from. The interactive page's shortcuts (arrow keys / Shift+arrows, see "Keyboard window" above) are unchanged and separate.
 - Full design and rationale: `docs/superpowers/specs/2026-07-13-scene-editor-design.md`.
 

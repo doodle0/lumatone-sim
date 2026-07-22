@@ -5,13 +5,13 @@
 import {
   SQRT3, DEFAULT_HEX_SIZE,
   hexCenter, hexVertices, visibleKeys,
-} from './hexGrid.ts';
-import type { HexKey } from './hexGrid.ts';
-import type { TuningEngine } from './tuningEngine.ts';
-import type { LayoutConfig } from './layout.ts';
-import { getDegree } from './layout.ts';
-import type { KeyboardWindow } from './keyboardInput.ts';
-import { spiralNote } from './spiralFifths.ts';
+} from '../core/hexGrid.ts';
+import type { HexKey } from '../core/hexGrid.ts';
+import type { TuningEngine } from '../core/tuningEngine.ts';
+import type { LayoutConfig } from '../core/layout.ts';
+import { getDegree } from '../core/layout.ts';
+import type { KeyboardWindow } from '../input/keyboardInput.ts';
+import { spiralNote } from '../core/spiralFifths.ts';
 import type { CameraState } from './camera.ts';
 import { DEFAULT_CAMERA } from './camera.ts';
 

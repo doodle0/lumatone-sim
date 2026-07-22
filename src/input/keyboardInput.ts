@@ -2,7 +2,7 @@
 // Row i → r = rOffset + i,  key j → q = qOffset + j  (no stagger).
 // Default window: 12 wide × 4 tall, centered on (0, 0).
 
-import { keyIndex } from './hexGrid.ts';
+import { keyIndex } from '../core/hexGrid.ts';
 
 const KB_ROWS: [string, string][][] = [
   [

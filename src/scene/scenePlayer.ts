@@ -2,21 +2,21 @@
 // and mode keyframes against a shared rAF clock, drives audioEngine + renderer,
 // and starts/stops recordingEngine automatically for a start-to-finish render.
 
-import type { AudioEngine } from './audioEngine.ts';
-import type { Renderer, RendererState, ColorMode } from './renderer.ts';
-import type { RecordingEngine } from './recordingEngine.ts';
-import type { TuningEngine } from './tuningEngine.ts';
-import { TUNINGS } from './tuningEngine.ts';
-import type { LayoutConfig } from './layout.ts';
-import { LAYOUT_PRESETS } from './layout.ts';
+import type { AudioEngine } from '../audio/audioEngine.ts';
+import type { Renderer, RendererState, ColorMode } from '../render/renderer.ts';
+import type { RecordingEngine } from '../io/recordingEngine.ts';
+import type { TuningEngine } from '../core/tuningEngine.ts';
+import { TUNINGS } from '../core/tuningEngine.ts';
+import type { LayoutConfig } from '../core/layout.ts';
+import { LAYOUT_PRESETS } from '../core/layout.ts';
 import type { Scene } from './scene.ts';
 import { channelConfig, modeOffsetAt, inModePitchClassesFor } from './scene.ts';
-import type { MidiEvent } from './midiFile.ts';
-import { midiDuration } from './midiFile.ts';
-import type { CameraState } from './camera.ts';
-import { interpolateCamera } from './camera.ts';
-import { midiToDegree } from './midiInput.ts';
-import { buildKeyboardWindow } from './keyboardInput.ts';
+import type { MidiEvent } from '../io/midiFile.ts';
+import { midiDuration } from '../io/midiFile.ts';
+import type { CameraState } from '../render/camera.ts';
+import { interpolateCamera } from '../render/camera.ts';
+import { midiToDegree } from '../input/midiInput.ts';
+import { buildKeyboardWindow } from '../input/keyboardInput.ts';
 
 export interface ScenePlayerCallbacks {
   onProgress(elapsedSec: number, totalSec: number): void;

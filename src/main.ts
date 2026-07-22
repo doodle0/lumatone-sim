@@ -1,16 +1,16 @@
 import './style.css';
-import { TUNINGS } from './tuningEngine.ts';
-import { LAYOUT_PRESETS } from './layout.ts';
-import { getDegree } from './layout.ts';
-import { keyCoords } from './hexGrid.ts';
-import { createAudioEngine } from './audioEngine.ts';
-import { createRenderer } from './renderer.ts';
-import { buildKeyboardWindow, keyWindowIndex } from './keyboardInput.ts';
-import { createMidiInput, midiToDegree } from './midiInput.ts';
-import { build12ToEdoMap, kToName } from './spiralFifths.ts';
-import type { RendererState, ColorMode } from './renderer.ts';
-import { createRecordingEngine } from './recordingEngine.ts';
-import type { RecordingEngine } from './recordingEngine.ts';
+import { TUNINGS } from './core/tuningEngine.ts';
+import { LAYOUT_PRESETS } from './core/layout.ts';
+import { getDegree } from './core/layout.ts';
+import { keyCoords } from './core/hexGrid.ts';
+import { createAudioEngine } from './audio/audioEngine.ts';
+import { createRenderer } from './render/renderer.ts';
+import { buildKeyboardWindow, keyWindowIndex } from './input/keyboardInput.ts';
+import { createMidiInput, midiToDegree } from './input/midiInput.ts';
+import { build12ToEdoMap, kToName } from './core/spiralFifths.ts';
+import type { RendererState, ColorMode } from './render/renderer.ts';
+import { createRecordingEngine } from './io/recordingEngine.ts';
+import type { RecordingEngine } from './io/recordingEngine.ts';
 
 // --- State ---
 let tuningKey = '31';

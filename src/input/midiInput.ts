@@ -1,7 +1,7 @@
 // Web MIDI input — connects to all available MIDI inputs and fires note callbacks.
 // MIDI note 60 = C4 = degree 0 in our system.
 
-import { build12ToEdoMap } from './spiralFifths.ts';
+import { build12ToEdoMap } from '../core/spiralFifths.ts';
 
 export type MidiStatus = 'unavailable' | 'denied' | 'connected' | 'no-devices';
 
