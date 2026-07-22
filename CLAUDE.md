@@ -155,13 +155,15 @@ QWERTY rows map to a 4-row window into the axial grid (12 keys on rows 0–1, 11
 - For 19/31-EDO: uses `build12ToEdoMap(edo, modeOffset)` to resolve each MIDI pitch class to the correct EDO degree given the current enharmonic window. Octave is chosen to minimise pitch distance from the 12-EDO degree.
 - Status reported to the UI: `unavailable` | `denied` | `connected` | `no-devices`.
 - `modeOffset` changes release all active MIDI notes to avoid stuck voices.
+- Note-on velocity is forwarded to `audio.noteOn` as `velocity / 127`, driving the ADSR peak/sustain scaling described in "Audio engine".
 
 ## Audio engine
 
 - Polyphonic, one `OscillatorNode + GainNode` per active voice.
-- ADSR envelope (attack, decay, sustain, release) applied per voice.
-- Master gain with smooth ramping.
+- ADSR envelope (attack, decay, sustain, release) applied per voice; peak (attack target) and sustain level both scale with note velocity (`noteOn`'s `velocity` override, `0..1`).
 - Waveforms: sine, triangle, sawtooth, square.
+- Per-voice signal chain: `osc → gain (ADSR×velocity) → lowpass filter → StereoPannerNode → masterGain`. The lowpass (2kHz cutoff, Q = 1/√2 Butterworth) tames high harmonics, especially on sawtooth/square. `pan` (`-1`=left … `1`=right, default 0) is per-`noteOn` — scene playback passes each channel's configured pan (see "Scene editor"); the interactive page leaves it centered.
+- Master bus: `masterGain → limiter (DynamicsCompressorNode) → destination`. The limiter (threshold −3dB, ratio 20:1, knee 0, attack 3ms, release 250ms) keeps the summed output of many simultaneous voices/channels from clipping, since per-voice peak gain alone doesn't bound that. `getMasterOutput()` returns the limiter (post-master-gain, pre-destination) — this is the tap point `recordingEngine` uses.
 - `AudioContext` created lazily on first note (satisfies browser autoplay policy).
 
 ## Scene editor
@@ -169,11 +171,13 @@ QWERTY rows map to a 4-row window into the axial grid (12 keys on rows 0–1, 11
 `scene-editor.html` (`src/sceneEditor.ts`) authors and renders MIDI-driven "scenes" for educational microtonal-scale videos — separate from the interactive performance page (`index.html`/`main.ts`).
 
 - A **scene** = one MIDI file + one keyframe timeline = one rendered `.webm` output. Multiple scenes are assembled into a full video by hand, outside the app.
-- **Scene JSON** (`src/scene.ts`): `{ name, midiFile, tuning: { edo }, channels: Record<midiChannel, { waveform, adsr }>, cameraKeyframes, modeKeyframes }`. `tuning.edo` is fixed for the whole scene; per-channel `waveform`/`adsr` is static for the whole scene (not keyframable).
+- **Scene JSON** (`src/scene.ts`): `{ name, midiFile, tuning: { edo }, channels: Record<midiChannel, { waveform, adsr, pan }>, cameraKeyframes, modeKeyframes }`. `tuning.edo` is fixed for the whole scene; per-channel `waveform`/`adsr`/`pan` is static for the whole scene (not keyframable). `pan` (`-1`=left … `1`=right) is auto-seeded per channel from the MIDI file's own Pan CC (#10) when a MIDI file is loaded (`parseMidiChannelPans` in `src/midiFile.ts`), editable in the Channels table.
 - **Camera keyframes** (`src/camera.ts`): `{ t, q, r, zoom, duration?, easing? }`. Hold-then-ease semantics — the camera holds at the previous keyframe's `(q, r, zoom)` until `duration` seconds before this keyframe's `t`, then eases in (`easing` ∈ `linear | easeIn | easeOut | easeInOut`, default `easeInOut`), arriving exactly at `t`.
-- **Mode keyframes**: `{ t, modeOffset }`. Instant switch (no easing — `modeOffset` is discrete), releases all currently-sounding scene notes on change (same safety behavior as the Shift+←/→ live control).
+- **Mode keyframes**: `{ t, modeOffset }`. Instant switch (no easing — `modeOffset` is discrete). Only affects the pitch mapping of subsequent note-on events and the dimmed in-mode overlay — currently-sustained notes are *not* cut off or retuned (unlike the live Shift+←/→ control, which does release active notes since it's remapping notes the performer is still holding).
 - **Camera state** `{q, r, zoom}` (`src/camera.ts`) is the single source of truth for `renderer.ts`'s view transform — `RendererState.camera` (optional, defaults to `{q:0,r:0,zoom:1}`), effective hex size = `hexSize × zoom`, origin derived so `(q, r)` renders at canvas center. The interactive page never sets this field, so its behavior is unchanged.
-- **Render**: fully automatic. Load a scene JSON + its `.mid` file, click Render — `scenePlayer.ts` plays the scene start-to-finish (scheduling MIDI note on/off, camera, and mode keyframes against one clock) while `recordingEngine.ts` records, then auto-downloads the WebM when the MIDI ends (+ 1s release tail). No manual start/stop during playback.
+- **Play vs. Render**: `scenePlayer.ts`'s `play()` runs the same MIDI/camera/mode clock as `render()` but skips `recordingEngine` entirely (audible preview only) and starts from the scrub head (`startAt`) instead of always `t=0`; `stop()` cancels either early. Render always renders the full scene from `t=0`, recording throughout, and auto-downloads the WebM when the MIDI ends (+ 1s release tail).
+- **Scrub preview**: dragging the Time slider (or the ←/→/Home/End shortcuts) calls `updatePreview()`, which renders a static snapshot at that timestamp — camera position (`interpolateCamera`), the in-mode overlay for whatever mode keyframe is active at that time (`modeOffsetAt`/`inModePitchClassesFor`), and which notes are actually sounding then (`activeDegreesAt`, all in `src/scene.ts`/`src/scenePlayer.ts`) — without playing audio.
+- **Keyboard shortcuts** (scene editor only): `Space` toggles Play/Stop and `Esc` stops — both are global and always win, regardless of focus, so neither ever falls through to a focused element's own native behavior (a button click, a `<select>` popping open, a file input's OS picker). `←`/`→` scrub 0.1s (`Shift` = 1s), `Home`/`End` jump to the start/end of the scene, and `Delete`/`Backspace` removes the selected Camera or Mode keyframe — these back off while a genuinely-editable control (number field, select, button, contenteditable) has focus, except the `#scrub` range input itself, which they take over cleanly from. The interactive page's shortcuts (arrow keys / Shift+arrows, see "Keyboard window" above) are unchanged and separate.
 - Full design and rationale: `docs/superpowers/specs/2026-07-13-scene-editor-design.md`.
 
 Ideas noted in that spec but intentionally out of scope for the first pass: caption/text-overlay keyframes, live interval/ratio readout, A/B tuning comparison, slow-motion playback, WAV-only audio export, keyframable per-channel ADSR, multi-MIDI-file scenes, interactive pan/zoom in the editor preview canvas.
