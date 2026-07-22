@@ -24,18 +24,34 @@
         <input type="file" id="midi-file-input" accept=".mid,.midi" class="ctrl-select">
       </label>
 
+      <label class="ctrl-label">
+        Resolution
+        <select id="resolution-select" class="ctrl-select">
+          <option value="preview">Match Preview</option>
+          <option value="1080x1920">1080×1920 (9:16)</option>
+          <option value="1920x1080">1920×1080 (16:9)</option>
+          <option value="1080x1080">1080×1080 (1:1)</option>
+          <option value="custom">Custom…</option>
+        </select>
+      </label>
+
+      <label id="resolution-custom-wrap" class="ctrl-label hidden">
+        <input type="number" id="resolution-width" min="16" step="2" value="1080" class="ctrl-number">
+        ×
+        <input type="number" id="resolution-height" min="16" step="2" value="1920" class="ctrl-number">
+      </label>
+
       <button id="play-btn" disabled
-        class="px-3 py-1 rounded text-sm font-medium bg-accent/ghost text-accent hover:bg-accent/hover transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+        class="btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
         ► Play
       </button>
 
       <button id="render-btn" disabled
-        class="px-3 py-1 rounded text-sm font-medium bg-accent/ghost text-accent hover:bg-accent/hover transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+        class="btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
         ⏺ Render
       </button>
 
-      <button id="stop-btn"
-        class="hidden px-3 py-1 rounded text-sm font-medium bg-red-500/ghost text-red-400 hover:bg-red-500/hover transition-colors cursor-pointer">
+      <button id="stop-btn" class="hidden btn-primary-danger">
         ⏹ Stop
       </button>
 
@@ -57,16 +73,16 @@
     <div class="flex items-center gap-3">
       <span class="ctrl-label w-16">Camera</span>
       <div id="camera-track" class="flex-1"></div>
-      <button id="camera-add-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer">+ kf</button>
-      <button id="camera-del-btn" class="px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer">delete</button>
+      <button id="camera-add-btn" class="btn-small">+ kf</button>
+      <button id="camera-del-btn" class="btn-small-danger">delete</button>
     </div>
     <div id="camera-inspector" class="flex items-center gap-3 pl-19 text-sm"></div>
 
     <div class="flex items-center gap-3">
       <span class="ctrl-label w-16">Mode</span>
       <div id="mode-track" class="flex-1"></div>
-      <button id="mode-add-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer">+ kf</button>
-      <button id="mode-del-btn" class="px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer">delete</button>
+      <button id="mode-add-btn" class="btn-small">+ kf</button>
+      <button id="mode-del-btn" class="btn-small-danger">delete</button>
     </div>
     <div id="mode-inspector" class="flex items-center gap-3 pl-19 text-sm"></div>
   </div>
@@ -75,8 +91,8 @@
     <div class="flex items-center gap-3">
       <button id="channels-fold-btn" type="button" class="ctrl-label cursor-pointer select-none" aria-expanded="true">▾ Channels</button>
       <span id="channels-summary" class="text-fg/hint text-xs"></span>
-      <button id="channel-add-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer">+ channel</button>
-      <button id="save-scene-btn" class="px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer ml-auto">Save Scene JSON</button>
+      <button id="channel-add-btn" class="btn-small">+ channel</button>
+      <button id="save-scene-btn" class="btn-small ml-auto">Save Scene JSON</button>
     </div>
     <div id="channels-table" class="flex flex-col gap-1"></div>
   </div>

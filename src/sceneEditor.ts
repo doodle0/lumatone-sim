@@ -31,6 +31,28 @@ const renderBtn       = document.getElementById('render-btn')      as HTMLButton
 const playStopBtn      = document.getElementById('stop-btn')        as HTMLButtonElement;
 const statusEl       = document.getElementById('render-status')    as HTMLSpanElement;
 
+const resolutionSelect     = document.getElementById('resolution-select')      as HTMLSelectElement;
+const resolutionCustomWrap = document.getElementById('resolution-custom-wrap') as HTMLLabelElement;
+const resolutionWidthInput  = document.getElementById('resolution-width')  as HTMLInputElement;
+const resolutionHeightInput = document.getElementById('resolution-height') as HTMLInputElement;
+
+resolutionSelect.addEventListener('change', () => {
+  resolutionCustomWrap.classList.toggle('hidden', resolutionSelect.value !== 'custom');
+});
+
+/** Fixed render resolution, or null to keep matching the live preview's on-screen size. */
+function getRenderResolution(): { w: number; h: number } | null {
+  const val = resolutionSelect.value;
+  if (val === 'preview') return null;
+  if (val === 'custom') {
+    const w = parseInt(resolutionWidthInput.value, 10);
+    const h = parseInt(resolutionHeightInput.value, 10);
+    return w > 0 && h > 0 ? { w, h } : null;
+  }
+  const [w, h] = val.split('x').map(Number);
+  return { w: w!, h: h! };
+}
+
 const PREVIEW_KEY_WINDOW = buildKeyboardWindow(-6, -2);
 
 let scene: Scene | null = null;
@@ -170,7 +192,7 @@ function renderChannelsTable(): void {
       input.type = 'number';
       input.step = '0.01';
       input.value = String(config.adsr[field]);
-      input.className = 'ctrl-select w-16';
+      input.className = 'ctrl-number';
       input.addEventListener('input', () => { config.adsr[field] = parseFloat(input.value) || 0; });
       wrap.appendChild(input);
       row.appendChild(wrap);
@@ -185,7 +207,7 @@ function renderChannelsTable(): void {
     panInput.min = '-1';
     panInput.max = '1';
     panInput.value = String(config.pan);
-    panInput.className = 'ctrl-select w-16';
+    panInput.className = 'ctrl-number';
     panInput.addEventListener('input', () => {
       config.pan = Math.max(-1, Math.min(1, parseFloat(panInput.value) || 0));
     });
@@ -205,7 +227,7 @@ function renderChannelsTable(): void {
 
     const delBtn = document.createElement('button');
     delBtn.textContent = 'remove';
-    delBtn.className = 'px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer';
+    delBtn.className = 'btn-small-danger';
     delBtn.addEventListener('click', () => {
       delete scene!.channels[channel];
       renderChannelsTable();
@@ -226,7 +248,7 @@ function renderChannelsTable(): void {
       baseInput.step = '10';
       baseInput.min = '20';
       baseInput.value = String(config.filterEnvelope.baseCutoff);
-      baseInput.className = 'ctrl-select w-20';
+      baseInput.className = 'ctrl-number';
       baseInput.addEventListener('input', () => {
         config.filterEnvelope.baseCutoff = parseFloat(baseInput.value) || 0;
       });
@@ -240,7 +262,7 @@ function renderChannelsTable(): void {
       depthInput.type = 'number';
       depthInput.step = '0.1';
       depthInput.value = String(config.filterEnvelope.depthOctaves);
-      depthInput.className = 'ctrl-select w-16';
+      depthInput.className = 'ctrl-number';
       depthInput.addEventListener('input', () => {
         config.filterEnvelope.depthOctaves = parseFloat(depthInput.value) || 0;
       });
@@ -256,7 +278,7 @@ function renderChannelsTable(): void {
       qInput.min = '0.1';
       qInput.max = '20';
       qInput.value = String(config.filterEnvelope.resonance);
-      qInput.className = 'ctrl-select w-16';
+      qInput.className = 'ctrl-number';
       qInput.addEventListener('input', () => {
         config.filterEnvelope.resonance = parseFloat(qInput.value) || 0.1;
       });
@@ -271,7 +293,7 @@ function renderChannelsTable(): void {
         input.type = 'number';
         input.step = '0.01';
         input.value = String(config.filterEnvelope.adsr[field]);
-        input.className = 'ctrl-select w-16';
+        input.className = 'ctrl-number';
         input.addEventListener('input', () => { config.filterEnvelope.adsr[field] = parseFloat(input.value) || 0; });
         wrap.appendChild(input);
         filterRow.appendChild(wrap);
@@ -322,7 +344,7 @@ function renderCameraInspector(): void {
     input.type = 'number';
     input.step = String(step);
     input.value = String(value);
-    input.className = 'ctrl-select w-20';
+    input.className = 'ctrl-number';
     input.addEventListener('input', () => { onInput(parseFloat(input.value)); refreshTimeline(); });
     wrap.appendChild(input);
     return wrap;
@@ -360,7 +382,7 @@ function renderModeInspector(): void {
   input.type = 'number';
   input.step = '1';
   input.value = String(kf.modeOffset);
-  input.className = 'ctrl-select w-20';
+  input.className = 'ctrl-number';
   input.addEventListener('input', () => { kf.modeOffset = parseInt(input.value, 10) || 0; refreshTimeline(); });
   wrap.appendChild(input);
   modeInspectorEl.appendChild(wrap);
@@ -477,8 +499,27 @@ midiFileInput.addEventListener('change', async () => {
   refreshTimeline();
 });
 
+function restoreCanvasResolution(): void {
+  resizeObserver.observe(canvas);
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width > 0) renderer.resize(rect.width, rect.height);
+}
+
 function startPlayback(recordFlag: boolean): void {
   if (!scene || !events || activePlayer) return;
+
+  // Fixed-resolution export: lock the canvas's backing buffer to the exact
+  // target pixel size (dpr=1) so captureStream() records at that resolution,
+  // independent of the live preview's on-screen size. Restored on completion.
+  let usedFixedResolution = false;
+  if (recordFlag) {
+    const target = getRenderResolution();
+    if (target) {
+      usedFixedResolution = true;
+      resizeObserver.unobserve(canvas);
+      renderer.resize(target.w, target.h, 1);
+    }
+  }
 
   const recording = createRecordingEngine(canvas, audio.getAudioContext(), audio.getMasterOutput());
   const player = createScenePlayer(scene, events, audio, renderer, recording, {
@@ -504,12 +545,14 @@ function startPlayback(recordFlag: boolean): void {
       } else {
         statusEl.textContent = 'Playback complete.';
       }
+      if (usedFixedResolution) restoreCanvasResolution();
       activePlayer = null;
       playStopBtn.classList.add('hidden');
       updateRenderButton();
     },
     onError(err) {
       statusEl.textContent = `${recordFlag ? 'Render' : 'Playback'} error: ${err.message}`;
+      if (usedFixedResolution) restoreCanvasResolution();
       activePlayer = null;
       playStopBtn.classList.add('hidden');
       updateRenderButton();

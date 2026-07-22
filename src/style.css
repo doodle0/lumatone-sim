@@ -37,6 +37,12 @@
   .ctrl-label  { @apply flex items-center gap-1.5 text-sm uppercase tracking-wide text-fg/label; }
   .ctrl-range  { @apply w-20 accent-accent cursor-pointer; }
   .ctrl-select { @apply bg-bg border-border text-fg py-0.5 cursor-pointer focus:ring-accent/label; }
+  .ctrl-number { @apply bg-bg border-border text-fg py-0.5 cursor-pointer focus:ring-accent/label w-24; }
+
+  .btn-primary        { @apply px-3 py-1 rounded text-sm font-medium bg-accent/ghost text-accent hover:bg-accent/hover transition-colors cursor-pointer; }
+  .btn-primary-danger { @apply px-3 py-1 rounded text-sm font-medium bg-red-500/ghost text-red-400 hover:bg-red-500/hover transition-colors cursor-pointer; }
+  .btn-small          { @apply px-2 py-0.5 rounded text-xs bg-accent/ghost text-accent hover:bg-accent/hover cursor-pointer; }
+  .btn-small-danger   { @apply px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer; }
 
   .spiral-note {
     @apply text-sm tracking-tighter w-10 text-center px-1.5 py-px rounded-sm whitespace-nowrap cursor-default select-none text-fg/hint;

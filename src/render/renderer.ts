@@ -133,7 +133,8 @@ export interface RendererState {
 }
 
 export interface Renderer {
-  resize(w: number, h: number): void;
+  /** dprOverride bypasses window.devicePixelRatio, so canvas.width/height land exactly at w×h (used for fixed-resolution export). */
+  resize(w: number, h: number, dprOverride?: number): void;
   render(state: RendererState): void;
   hitTest(x: number, y: number): number;
   setHexSize(s: number): void;
@@ -167,8 +168,8 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
     keys = visibleKeys(cssW, cssH, effSize, originX, originY);
   }
 
-  function resize(w: number, h: number): void {
-    dpr = window.devicePixelRatio || 1;
+  function resize(w: number, h: number, dprOverride?: number): void {
+    dpr = dprOverride ?? (window.devicePixelRatio || 1);
     cssW = w; cssH = h;
     recomputeKeys();
 
