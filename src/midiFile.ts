@@ -43,3 +43,22 @@ export function parseMidiFile(buffer: ArrayBuffer): MidiEvent[] {
 export function midiDuration(events: readonly MidiEvent[]): number {
   return events.length === 0 ? 0 : events[events.length - 1]!.tAbs;
 }
+
+/**
+ * Each track's initial Pan CC (#10), in the Web Audio StereoPannerNode range
+ * [-1, 1] (-1 = full left, 0 = center, 1 = full right). A channel with no Pan
+ * CC in the file is omitted (callers should default it to 0/center).
+ */
+export function parseMidiChannelPans(buffer: ArrayBuffer): Record<number, number> {
+  const midi = new Midi(buffer);
+  const pans: Record<number, number> = {};
+
+  for (const track of midi.tracks) {
+    const panCcs = track.controlChanges.pan;
+    if (panCcs && panCcs.length > 0) {
+      pans[track.channel] = panCcs[0]!.value * 2 - 1;
+    }
+  }
+
+  return pans;
+}

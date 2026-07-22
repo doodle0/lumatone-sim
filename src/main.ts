@@ -94,11 +94,11 @@ const MIDI_STATUS_LABELS: Record<string, string> = {
 };
 
 createMidiInput(
-  (midiNote, _velocity) => {
+  (midiNote, velocity) => {
     const degree = midiToDegree(midiNote, tuning.stepsPerOctave, modeOffset);
     midiNoteToActiveDegree.set(midiNote, degree);
     activeMidiDegrees.add(degree);
-    audio.noteOn(`midi-${midiNote}`, tuning.getFrequency(degree));
+    audio.noteOn(`midi-${midiNote}`, tuning.getFrequency(degree), { velocity: velocity / 127 });
   },
   (midiNote) => {
     const degree = midiNoteToActiveDegree.get(midiNote);

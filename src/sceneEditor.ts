@@ -2,17 +2,19 @@ import './style.css';
 import { createAudioEngine } from './audioEngine.ts';
 import { createRenderer } from './renderer.ts';
 import { createRecordingEngine } from './recordingEngine.ts';
-import { parseScene } from './scene.ts';
+import { parseScene, createDefaultScene } from './scene.ts';
 import type { Scene } from './scene.ts';
 import type { ChannelConfig } from './scene.ts';
 import { DEFAULT_CHANNEL_CONFIG } from './scene.ts';
-import { parseMidiFile, midiDuration } from './midiFile.ts';
+import { parseMidiFile, midiDuration, parseMidiChannelPans } from './midiFile.ts';
 import type { MidiEvent } from './midiFile.ts';
-import { createScenePlayer } from './scenePlayer.ts';
+import { createScenePlayer, activeDegreesAt } from './scenePlayer.ts';
+import type { ScenePlayer } from './scenePlayer.ts';
 import { createTimelineTrack } from './timelineTrack.ts';
 import type { CameraKeyframe } from './camera.ts';
 import { interpolateCamera, DEFAULT_CAMERA } from './camera.ts';
 import type { ModeKeyframe } from './scene.ts';
+import { modeOffsetAt, inModePitchClassesFor } from './scene.ts';
 import { TUNINGS } from './tuningEngine.ts';
 import { LAYOUT_PRESETS } from './layout.ts';
 import { buildKeyboardWindow } from './keyboardInput.ts';
@@ -23,13 +25,16 @@ const renderer = createRenderer(canvas);
 
 const sceneFileInput = document.getElementById('scene-file-input') as HTMLInputElement;
 const midiFileInput  = document.getElementById('midi-file-input')  as HTMLInputElement;
-const renderBtn      = document.getElementById('render-btn')       as HTMLButtonElement;
+const playBtn         = document.getElementById('play-btn')        as HTMLButtonElement;
+const renderBtn       = document.getElementById('render-btn')      as HTMLButtonElement;
+const playStopBtn      = document.getElementById('stop-btn')        as HTMLButtonElement;
 const statusEl       = document.getElementById('render-status')    as HTMLSpanElement;
 
 const PREVIEW_KEY_WINDOW = buildKeyboardWindow(-6, -2);
 
 let scene: Scene | null = null;
 let events: MidiEvent[] | null = null;
+let activePlayer: ScenePlayer | null = null;
 
 let selectedCameraIndex = -1;
 let selectedModeIndex = -1;
@@ -128,6 +133,22 @@ function renderChannelsTable(): void {
       row.appendChild(wrap);
     }
 
+    const panWrap = document.createElement('label');
+    panWrap.className = 'ctrl-label';
+    panWrap.textContent = 'Pan ';
+    const panInput = document.createElement('input');
+    panInput.type = 'number';
+    panInput.step = '0.1';
+    panInput.min = '-1';
+    panInput.max = '1';
+    panInput.value = String(config.pan);
+    panInput.className = 'ctrl-select w-16';
+    panInput.addEventListener('input', () => {
+      config.pan = Math.max(-1, Math.min(1, parseFloat(panInput.value) || 0));
+    });
+    panWrap.appendChild(panInput);
+    row.appendChild(panWrap);
+
     const delBtn = document.createElement('button');
     delBtn.textContent = 'remove';
     delBtn.className = 'px-2 py-0.5 rounded text-xs bg-red-500/ghost text-red-400 hover:bg-red-500/hover cursor-pointer';
@@ -145,7 +166,11 @@ channelAddBtn.addEventListener('click', () => {
   if (!scene) return;
   let next = 0;
   while (scene.channels[next]) next++;
-  scene.channels[next] = { waveform: DEFAULT_CHANNEL_CONFIG.waveform, adsr: { ...DEFAULT_CHANNEL_CONFIG.adsr } };
+  scene.channels[next] = {
+    waveform: DEFAULT_CHANNEL_CONFIG.waveform,
+    adsr: { ...DEFAULT_CHANNEL_CONFIG.adsr },
+    pan: DEFAULT_CHANNEL_CONFIG.pan,
+  };
   renderChannelsTable();
 });
 
@@ -261,12 +286,13 @@ function updatePreview(): void {
   modeTrack.setPlayhead(scrubTime);
   if (!scene) return;
   const camera = interpolateCamera(scene.cameraKeyframes, scrubTime);
+  const modeOffset = modeOffsetAt(scene.modeKeyframes, scrubTime);
   renderer.render({
     tuning: TUNINGS[String(scene.tuning.edo)]!,
     layout: LAYOUT_PRESETS[String(scene.tuning.edo)]!,
     activeKeys: new Set(),
-    activeDegrees: new Set(),
-    inModePitchClasses: null,
+    activeDegrees: events ? activeDegreesAt(scene, events, scene.tuning.edo, scrubTime) : new Set(),
+    inModePitchClasses: inModePitchClassesFor(scene.tuning.edo, modeOffset),
     keyWindow: PREVIEW_KEY_WINDOW,
     colorMode: 'spiral',
     showKbGuide: false,
@@ -275,7 +301,9 @@ function updatePreview(): void {
 }
 
 function updateRenderButton(): void {
-  renderBtn.disabled = !(scene && events);
+  const ready = !!(scene && events) && !activePlayer;
+  renderBtn.disabled = !ready;
+  playBtn.disabled = !ready;
 }
 
 sceneFileInput.addEventListener('change', async () => {
@@ -296,8 +324,27 @@ midiFileInput.addEventListener('change', async () => {
   const file = midiFileInput.files?.[0];
   if (!file) return;
   try {
-    events = parseMidiFile(await file.arrayBuffer());
-    statusEl.textContent = `Loaded MIDI (${events.length} events)`;
+    const buffer = await file.arrayBuffer();
+    events = parseMidiFile(buffer);
+    if (!scene) {
+      scene = createDefaultScene(file.name);
+      statusEl.textContent = `Loaded MIDI (${events.length} events) — created default scene`;
+    } else {
+      statusEl.textContent = `Loaded MIDI (${events.length} events)`;
+    }
+
+    // Seed a channel row (with the file's own Pan CC, if any) for every
+    // channel the MIDI file actually uses that isn't already configured —
+    // so playback respects each channel's panning without manual setup.
+    const pans = parseMidiChannelPans(buffer);
+    for (const channel of new Set(events.map((e) => e.channel))) {
+      if (scene.channels[channel]) continue;
+      scene.channels[channel] = {
+        waveform: DEFAULT_CHANNEL_CONFIG.waveform,
+        adsr: { ...DEFAULT_CHANNEL_CONFIG.adsr },
+        pan: pans[channel] ?? DEFAULT_CHANNEL_CONFIG.pan,
+      };
+    }
   } catch (err) {
     events = null;
     statusEl.textContent = `MIDI error: ${err instanceof Error ? err.message : String(err)}`;
@@ -306,30 +353,124 @@ midiFileInput.addEventListener('change', async () => {
   refreshTimeline();
 });
 
-renderBtn.addEventListener('click', () => {
-  if (!scene || !events) return;
-  renderBtn.disabled = true;
+function startPlayback(recordFlag: boolean): void {
+  if (!scene || !events || activePlayer) return;
+
   const recording = createRecordingEngine(canvas, audio.getAudioContext(), audio.getMasterOutput());
   const player = createScenePlayer(scene, events, audio, renderer, recording, {
     onProgress(elapsed, total) {
-      statusEl.textContent = `Rendering… ${elapsed.toFixed(1)}s / ${total.toFixed(1)}s`;
+      statusEl.textContent = recordFlag
+        ? `Rendering… ${elapsed.toFixed(1)}s / ${total.toFixed(1)}s`
+        : `Playing… ${elapsed.toFixed(1)}s / ${total.toFixed(1)}s`;
+      scrubTime = elapsed;
+      scrubInput.value = String(elapsed);
+      scrubTimeEl.textContent = `${elapsed.toFixed(1)} / ${total.toFixed(1)}s`;
+      cameraTrack.setPlayhead(elapsed);
+      modeTrack.setPlayhead(elapsed);
     },
     onDone(blob) {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${scene!.name.replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
-      a.click();
-      URL.revokeObjectURL(url);
-      statusEl.textContent = 'Render complete — downloaded.';
-      renderBtn.disabled = false;
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${scene!.name.replace(/\s+/g, '-')}-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        statusEl.textContent = 'Render complete — downloaded.';
+      } else {
+        statusEl.textContent = 'Playback complete.';
+      }
+      activePlayer = null;
+      playStopBtn.classList.add('hidden');
+      updateRenderButton();
     },
     onError(err) {
-      statusEl.textContent = `Render error: ${err.message}`;
-      renderBtn.disabled = false;
+      statusEl.textContent = `${recordFlag ? 'Render' : 'Playback'} error: ${err.message}`;
+      activePlayer = null;
+      playStopBtn.classList.add('hidden');
+      updateRenderButton();
     },
   });
-  player.render();
+
+  activePlayer = player;
+  playStopBtn.classList.remove('hidden');
+  updateRenderButton();
+  if (recordFlag) player.render(); else player.play(scrubTime);
+}
+
+renderBtn.addEventListener('click', () => startPlayback(true));
+playBtn.addEventListener('click', () => startPlayback(false));
+playStopBtn.addEventListener('click', () => activePlayer?.stop());
+
+// --- Keyboard shortcuts ---
+// Space is a global transport shortcut and always wins, no matter what has
+// focus: it must never fall through to a focused element's own native Space
+// behavior (a button "clicking" itself, a <select> popping its option list,
+// a file input opening the OS file picker). So it's handled first, before any
+// focus check — there is no element on this page that gets to consume it.
+//
+// The other shortcuts below (arrows/Home/End/Delete) are different: they'd
+// step on a genuinely focused editable control (typing a number, picking a
+// select option), so those back off via isInteractiveTarget. The one
+// exception is the #scrub range input — it's the control users interact with
+// constantly, mouse click/drag leaves it holding focus in Chrome/Firefox, and
+// our arrow/Home/End handlers already call preventDefault() before touching
+// scrubTime, so they cleanly take over from (rather than fight with) the
+// slider's native nudging.
+function isInteractiveTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  if (el.tagName === 'SELECT' || el.tagName === 'TEXTAREA' || el.tagName === 'BUTTON' || el.isContentEditable) return true;
+  if (el.tagName === 'INPUT') return (el as HTMLInputElement).type !== 'range';
+  return false;
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (activePlayer) activePlayer.stop();
+    else startPlayback(false);
+    return;
+  }
+
+  if (e.code === 'Escape') {
+    if (activePlayer) activePlayer.stop();
+    return;
+  }
+
+  if (isInteractiveTarget(e.target)) return;
+
+  if (!scene || activePlayer) return;
+
+  if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+    e.preventDefault();
+    const step = e.shiftKey ? 1 : 0.1;
+    const delta = e.code === 'ArrowLeft' ? -step : step;
+    scrubTime = Math.max(0, Math.min(sceneDuration(), scrubTime + delta));
+    scrubInput.value = String(scrubTime);
+    updatePreview();
+    return;
+  }
+
+  if (e.code === 'Home') {
+    e.preventDefault();
+    scrubTime = 0;
+    scrubInput.value = '0';
+    updatePreview();
+    return;
+  }
+
+  if (e.code === 'End') {
+    e.preventDefault();
+    scrubTime = sceneDuration();
+    scrubInput.value = String(scrubTime);
+    updatePreview();
+    return;
+  }
+
+  if (e.code === 'Delete' || e.code === 'Backspace') {
+    if (selectedCameraIndex >= 0) { e.preventDefault(); cameraDelBtn.click(); }
+    else if (selectedModeIndex >= 0) { e.preventDefault(); modeDelBtn.click(); }
+  }
 });
 
 const resizeObserver = new ResizeObserver((entries) => {

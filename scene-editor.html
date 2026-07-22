@@ -24,12 +24,26 @@
         <input type="file" id="midi-file-input" accept=".mid,.midi" class="ctrl-select">
       </label>
 
+      <button id="play-btn" disabled
+        class="px-3 py-1 rounded text-sm font-medium bg-accent/ghost text-accent hover:bg-accent/hover transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+        ► Play
+      </button>
+
       <button id="render-btn" disabled
         class="px-3 py-1 rounded text-sm font-medium bg-accent/ghost text-accent hover:bg-accent/hover transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-        ▶ Render
+        ⏺ Render
+      </button>
+
+      <button id="stop-btn"
+        class="hidden px-3 py-1 rounded text-sm font-medium bg-red-500/ghost text-red-400 hover:bg-red-500/hover transition-colors cursor-pointer">
+        ⏹ Stop
       </button>
 
       <span id="render-status" class="text-fg/label text-sm"></span>
+
+      <span class="text-fg/label text-xs ml-auto" title="Space: Play/Stop toggle&#10;←/→: scrub 0.1s (Shift: 1s)&#10;Home/End: jump to start/end&#10;Delete: remove selected keyframe&#10;Esc: stop">
+        ⌨ Shortcuts
+      </span>
     </div>
   </div>
 
