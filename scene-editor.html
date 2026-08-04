@@ -45,6 +45,16 @@
         <input type="number" id="resolution-height" min="16" step="2" value="1920" class="ctrl-number">
       </label>
 
+      <label class="ctrl-label border-l border-border pl-4">
+        Room Size <input type="range" id="reverb-room" min="0" max="1" step="0.01" value="0.9" class="ctrl-range">
+      </label>
+      <label class="ctrl-label">
+        Dampening <input type="range" id="reverb-dampening" min="20" max="20000" step="1" value="3000" class="ctrl-range">
+      </label>
+      <label class="ctrl-label">
+        Wet <input type="range" id="reverb-wet" min="0" max="1" step="0.01" value="0.05" class="ctrl-range">
+      </label>
+
       <button id="play-btn" disabled
         class="btn-primary disabled:opacity-40 disabled:cursor-not-allowed">
         ► Play

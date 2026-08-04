@@ -53,6 +53,28 @@ function getRenderResolution(): { w: number; h: number } | null {
   return { w: w!, h: h! };
 }
 
+const reverbRoomInput      = document.getElementById('reverb-room')      as HTMLInputElement;
+const reverbDampeningInput = document.getElementById('reverb-dampening') as HTMLInputElement;
+const reverbWetInput       = document.getElementById('reverb-wet')       as HTMLInputElement;
+
+/** Reflects the current scene's reverb config in the toolbar sliders (called after load/create). */
+function syncReverbControls(): void {
+  if (!scene) return;
+  reverbRoomInput.value = String(scene.reverb.roomSize);
+  reverbDampeningInput.value = String(scene.reverb.dampening);
+  reverbWetInput.value = String(scene.reverb.wet);
+}
+
+reverbRoomInput.addEventListener('input', () => {
+  if (scene) scene.reverb.roomSize = parseFloat(reverbRoomInput.value);
+});
+reverbDampeningInput.addEventListener('input', () => {
+  if (scene) scene.reverb.dampening = parseFloat(reverbDampeningInput.value);
+});
+reverbWetInput.addEventListener('input', () => {
+  if (scene) scene.reverb.wet = parseFloat(reverbWetInput.value);
+});
+
 const PREVIEW_KEY_WINDOW = buildKeyboardWindow(-6, -2);
 
 let scene: Scene | null = null;
@@ -457,6 +479,7 @@ sceneFileInput.addEventListener('change', async () => {
   try {
     scene = parseScene(await file.text());
     statusEl.textContent = `Loaded scene "${scene.name}"`;
+    syncReverbControls();
   } catch (err) {
     scene = null;
     statusEl.textContent = `Scene error: ${err instanceof Error ? err.message : String(err)}`;
@@ -474,6 +497,7 @@ midiFileInput.addEventListener('change', async () => {
     if (!scene) {
       scene = createDefaultScene(file.name);
       statusEl.textContent = `Loaded MIDI (${events.length} events) — created default scene`;
+      syncReverbControls();
     } else {
       statusEl.textContent = `Loaded MIDI (${events.length} events)`;
     }

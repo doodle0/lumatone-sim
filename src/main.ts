@@ -285,6 +285,10 @@ bindRange('filter-base',      (v) => audio.setFilterEnvelope({ baseCutoff: v }))
 bindRange('filter-depth',     (v) => audio.setFilterEnvelope({ depthOctaves: v }));
 bindRange('filter-resonance', (v) => audio.setFilterEnvelope({ resonance: v }));
 
+bindRange('reverb-room',      (v) => audio.setReverb({ roomSize: v }));
+bindRange('reverb-dampening', (v) => audio.setReverb({ dampening: v }));
+bindRange('reverb-wet',       (v) => audio.setReverb({ wet: v }));
+
 const presetSelect = document.getElementById('preset-select') as HTMLSelectElement;
 for (const preset of SYNTH_PRESETS) {
   const o = document.createElement('option');

@@ -80,6 +80,8 @@ export function createScenePlayer(
   const totalSec = midiDuration(events) + RELEASE_TAIL_SEC;
   const keyWindow = buildKeyboardWindow(-6, -2);
 
+  audio.setReverb(scene.reverb);
+
   let rafId = 0;
   let stopFn: (() => void) | null = null;
 

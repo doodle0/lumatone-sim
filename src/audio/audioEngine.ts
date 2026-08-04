@@ -3,7 +3,7 @@
 // summed through a shared compressor/limiter bus.
 // Voices are created on noteOn and released+disposed on noteOff.
 
-import { MonoSynth, Panner, Gain, Compressor, getContext, start, now } from 'tone';
+import { MonoSynth, Panner, Gain, Compressor, Freeverb, getContext, start, now } from 'tone';
 
 export interface ADSR {
   attack: number;   // seconds
@@ -20,6 +20,12 @@ export interface FilterEnvelope {
 }
 
 export type WaveType = 'sine' | 'triangle' | 'sawtooth' | 'square';
+
+export interface ReverbConfig {
+  roomSize: number;  // 0–1, Freeverb's own room-size parameter (larger = longer decay)
+  dampening: number; // Hz — lowpass cutoff applied to the reverberant tail (Freeverb's own param)
+  wet: number;       // 0–1, dry/wet mix
+}
 
 interface Voice {
   synth: MonoSynth;
@@ -41,6 +47,7 @@ export interface AudioEngine {
   setADSR(adsr: Partial<ADSR>): void;
   setWaveform(type: WaveType): void;
   setFilterEnvelope(partial: Partial<Omit<FilterEnvelope, 'adsr'>> & { adsr?: Partial<ADSR> }): void;
+  setReverb(partial: Partial<ReverbConfig>): void;
   setMasterVolume(value: number): void;
   isActive(id: string): boolean;
   getAudioContext(): AudioContext;
@@ -48,9 +55,7 @@ export interface AudioEngine {
 }
 
 // -12dB/octave lowpass on every voice, tamed high harmonics (esp. sawtooth/square).
-// A single 2-pole filter (rolloff -12) at Q = 1/√2 is the maximally-flat (Butterworth)
-// shape — matches the previous hand-rolled BiquadFilterNode's fixed behavior exactly
-// when depthOctaves is 0 (no sweep).
+// A single 2-pole filter (rolloff -12) at Q = 1/√2 is the maximally-flat (Butterworth) shape.
 const DEFAULT_FILTER_ENVELOPE: FilterEnvelope = {
   adsr: { attack: 0, decay: 0, sustain: 1, release: 0 },
   baseCutoff: 2000,
@@ -58,27 +63,34 @@ const DEFAULT_FILTER_ENVELOPE: FilterEnvelope = {
   resonance: Math.SQRT1_2,
 };
 
+export const DEFAULT_REVERB: ReverbConfig = { roomSize: 0.9, dampening: 3000, wet: 0.05 };
+
 export function createAudioEngine(): AudioEngine {
   let masterGain: Gain | null = null;
+  let reverb: Freeverb | null = null;
   let compressor: Compressor | null = null;
   const voices = new Map<string, Voice>();
 
   let adsr: ADSR = { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.3 };
   let waveType: WaveType = 'triangle';
   let filterEnvelope: FilterEnvelope = { ...DEFAULT_FILTER_ENVELOPE };
+  let reverbConfig: ReverbConfig = { ...DEFAULT_REVERB };
   let masterVolume = 0.5;
 
   function ensureBus(): void {
     if (getContext().state !== 'running') void start();
     if (masterGain) return;
     masterGain = new Gain(masterVolume);
+    reverb = new Freeverb(reverbConfig.roomSize, reverbConfig.dampening);
+    reverb.wet.value = reverbConfig.wet;
     compressor = new Compressor();
     compressor.threshold.value = -3;
     compressor.knee.value = 0;
     compressor.ratio.value = 20;
     compressor.attack.value = 0.003;
     compressor.release.value = 0.25;
-    masterGain.connect(compressor);
+    masterGain.connect(reverb);
+    reverb.connect(compressor);
     compressor.toDestination();
   }
 
@@ -178,6 +190,13 @@ export function createAudioEngine(): AudioEngine {
         ...partial,
         adsr: partial.adsr ? { ...filterEnvelope.adsr, ...partial.adsr } : filterEnvelope.adsr,
       };
+    },
+
+    setReverb(partial): void {
+      reverbConfig = { ...reverbConfig, ...partial };
+      if (partial.roomSize !== undefined) reverb?.roomSize.rampTo(partial.roomSize, 0.02);
+      if (partial.dampening !== undefined && reverb) reverb.dampening = partial.dampening;
+      if (partial.wet !== undefined) reverb?.wet.rampTo(partial.wet, 0.02);
     },
 
     setMasterVolume(value): void {

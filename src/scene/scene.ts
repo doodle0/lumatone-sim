@@ -1,7 +1,8 @@
 // Scene JSON schema: a MIDI-driven timeline of camera and mode-window keyframes,
 // plus static per-channel instrument config. See docs/superpowers/specs/2026-07-13-scene-editor-design.md.
 
-import type { ADSR, WaveType, FilterEnvelope } from '../audio/audioEngine.ts';
+import type { ADSR, WaveType, FilterEnvelope, ReverbConfig } from '../audio/audioEngine.ts';
+import { DEFAULT_REVERB } from '../audio/audioEngine.ts';
 import type { CameraKeyframe } from '../render/camera.ts';
 import { build12ToEdoMap } from '../core/spiralFifths.ts';
 
@@ -37,6 +38,7 @@ export interface Scene {
   name: string;
   midiFile: string;
   tuning: { edo: number };
+  reverb: ReverbConfig;
   channels: Record<number, ChannelConfig>;
   cameraKeyframes: CameraKeyframe[];
   modeKeyframes: ModeKeyframe[];
@@ -69,6 +71,7 @@ export function createDefaultScene(midiFileName: string): Scene {
     name: midiFileName.replace(/\.[^.]+$/, ''),
     midiFile: midiFileName,
     tuning: { edo: 12 },
+    reverb: { ...DEFAULT_REVERB },
     channels: {},
     cameraKeyframes: [],
     modeKeyframes: [],
@@ -100,6 +103,11 @@ function defaultFilterEnvelope(): FilterEnvelope {
   };
 }
 
+function isValidReverbConfig(v: unknown): v is ReverbConfig {
+  const r = v as Partial<ReverbConfig> | undefined;
+  return !!r && typeof r.roomSize === 'number' && typeof r.dampening === 'number' && typeof r.wet === 'number';
+}
+
 function hasNumericT<T extends { t: unknown }>(v: T): v is T & { t: number } {
   return typeof v === 'object' && v !== null && typeof v.t === 'number';
 }
@@ -120,6 +128,11 @@ export function parseScene(json: string): Scene {
   }
   if (!Array.isArray(raw.cameraKeyframes)) throw new Error('Scene JSON missing "cameraKeyframes" array');
   if (!Array.isArray(raw.modeKeyframes)) throw new Error('Scene JSON missing "modeKeyframes" array');
+
+  if (!isValidReverbConfig(raw.reverb)) {
+    console.warn('Scene JSON: missing/invalid "reverb", using default');
+  }
+  const reverb = isValidReverbConfig(raw.reverb) ? raw.reverb : { ...DEFAULT_REVERB };
 
   const channels: Record<number, ChannelConfig> = {};
   for (const [key, value] of Object.entries(raw.channels ?? {})) {
@@ -150,6 +163,7 @@ export function parseScene(json: string): Scene {
     name: raw.name,
     midiFile: raw.midiFile,
     tuning: { edo: raw.tuning.edo },
+    reverb,
     channels,
     cameraKeyframes: raw.cameraKeyframes.filter((kf) => {
       if (hasNumericT(kf)) return true;
