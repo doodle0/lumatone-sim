@@ -30,7 +30,7 @@ Files are organized in engine layers, each depending only on the layers below it
 | `src/input/midiInput.ts` | Web MIDI input. Maps MIDI notes to EDO degrees via `midiToDegree`; uses `build12ToEdoMap` for enharmonic mapping. |
 | `src/audio/audioEngine.ts` | Polyphonic Tone.js synth. Per-voice `MonoSynth` (osc + amp ADSR + filter + filter envelope) + panner; master limiter. |
 | `src/audio/synthPresets.ts` | Named synth presets (waveform + amp ADSR + filter envelope), selectable in the live page and scene editor. |
-| `src/render/renderer.ts` | Canvas 2D rendering. Offscreen static layer + per-frame active-key overlay. OKLCH colours. |
+| `src/render/renderer.ts` | Canvas 2D rendering. Offscreen static layer + per-frame active-key overlay. OKLCH colours. Labels use the "Noto Sans"/"Noto Sans KR" webfont (see "Fonts"). |
 | `src/render/camera.ts` | Scripted camera for scene playback: `{q, r, zoom}` state, hold-then-ease keyframe interpolation. |
 | `src/io/midiFile.ts` | Parses a Standard MIDI File (via `@tonejs/midi`) into a flat, time-sorted list of note on/off events. |
 | `src/io/recordingEngine.ts` | Records the canvas + audio output (via `audioEngine.getAudioContext()`/`getMasterOutput()`) into a WebM blob using `MediaRecorder`. |
@@ -144,6 +144,10 @@ All colours use OKLCH for perceptual uniformity: `oklch(L C H / alpha)`.
    - `activeDegrees`: scale degrees active via MIDI (highlights all matching hex positions on screen).
 
 Labels are hidden when `hexSize < 18`.
+
+## Fonts
+
+The app-wide font is the "Noto Sans" + "Noto Sans KR" webfont pair, loaded from Google Fonts via a `<link>` in both `index.html` and `scene-editor.html` (not self-hosted — this is a deliberate exception alongside the `tone`/`@tonejs/midi` runtime-dependency exceptions, scoped to a static asset rather than a package). Local system "Noto Sans" installs are missing glyphs for the accidental symbols `♯`/`♭` (used in `spiralFifths.ts` note names); "Noto Sans KR" does have them, so it's listed as a fallback in every font stack that renders note names — CSS (`style.css`'s `html` rule) and both canvas `ctx.font` strings in `renderer.ts`. Because canvas text doesn't block on webfont load, `main.ts`/`sceneEditor.ts` both call `renderer.resize()` again inside a `document.fonts.ready.then(...)` at startup, forcing the (possibly fallback-font) static layer to rebuild once the real webfont has finished loading.
 
 ## Keyboard window
 

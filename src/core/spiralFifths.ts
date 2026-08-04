@@ -37,7 +37,7 @@ function computeK(degree: number, edo: number): number {
 }
 
 export interface SpiralNote {
-  /** Note name, e.g. "C", "F#", "Db". */
+  /** Note name, e.g. "C", "F♯", "D♭". */
   name: string;
   /** Sharps count (positive) or flats count (negative). 0 = natural. */
   acc: number;
@@ -50,14 +50,14 @@ export interface SpiralNote {
  * Examples (31-TET):
  *   spiralNote(0,  31) → { name: "C",  acc:  0 }
  *   spiralNote(18, 31) → { name: "G",  acc:  0 }
- *   spiralNote(2,  31) → { name: "C#", acc:  1 }   ← chromatic semitone
- *   spiralNote(3,  31) → { name: "Db", acc: −1 }   ← diatonic semitone (distinct pitch)
+ *   spiralNote(2,  31) → { name: "C♯", acc:  1 }   ← chromatic semitone
+ *   spiralNote(3,  31) → { name: "D♭", acc: −1 }   ← diatonic semitone (distinct pitch)
  */
 export function spiralNote(degree: number, edo: number): SpiralNote {
   const k         = computeK(degree, edo);
   const letterIdx = ((k + 1) % 7 + 7) % 7;
   const acc       = Math.floor((k + 1) / 7);
-  const name      = LETTERS[letterIdx] + (acc >= 0 ? '#'.repeat(acc) : 'b'.repeat(-acc));
+  const name      = LETTERS[letterIdx] + (acc >= 0 ? '♯'.repeat(acc) : '♭'.repeat(-acc));
   return { name, acc };
 }
 

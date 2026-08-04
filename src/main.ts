@@ -1,4 +1,5 @@
 import './style.css';
+import { setContext, Context } from 'tone';
 import { TUNINGS } from './core/tuningEngine.ts';
 import { LAYOUT_PRESETS } from './core/layout.ts';
 import { getDegree } from './core/layout.ts';
@@ -27,6 +28,13 @@ let showKbGuide = true;
 let modeOffset = 0;
 let inModePcs: Set<number> | null = buildInModePcs(tuning.stepsPerOctave, modeOffset);
 let rafId = 0;
+
+// Real-time keyboard input: trim Tone's default ~100ms scheduling look-ahead down to
+// a thin safety margin instead of removing it outright, so a brief main-thread stall
+// can't turn a scheduled note into an audible click. Scoped to this page only — the
+// scene editor keeps Tone's default context, since scripted/recorded playback benefits
+// from the full look-ahead.
+setContext(new Context({ latencyHint: 'interactive', lookAhead: 0.01 }));
 
 const audio = createAudioEngine();
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
@@ -328,6 +336,13 @@ const resizeObserver = new ResizeObserver((entries) => {
 resizeObserver.observe(canvas);
 const initRect = canvas.getBoundingClientRect();
 if (initRect.width > 0) renderer.resize(initRect.width, initRect.height);
+
+// The static layer may have been built with a fallback font if the Noto Sans
+// webfont was still loading; rebuild once it's ready so labels pick it up.
+document.fonts.ready.then(() => {
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width > 0) renderer.resize(rect.width, rect.height);
+});
 
 // --- Recording ---
 const recordBtn    = document.getElementById('record-btn')    as HTMLButtonElement;

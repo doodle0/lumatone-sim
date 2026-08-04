@@ -107,12 +107,37 @@ function drawLabel(
   color: string,
 ): void {
   const [cx, cy] = hexCenter(q, r, size, originX, originY);
-  const fontSize = Math.max(10, Math.min(16, size * 0.38));
-  ctx.font = `${fontSize}px system-ui, sans-serif`;
+  const fontSize = Math.max(10, Math.min(32, size * 0.38));
+  ctx.font = `${fontSize}px "Noto Sans", "Noto Sans KR", sans-serif, system-ui`;
   ctx.fillStyle = color;
-  ctx.textAlign = 'center';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, cx, cy);
+
+  // Accidental characters (e.g. "♯♯" in "F♯♯") get tighter spacing between
+  // them (60% of normal); the note letter itself always renders at default
+  // spacing. Letter-spacing between fewer than 2 accidentals is a no-op, so
+  // there's no need to special-case the accidental count.
+  const letter = text[0]!;
+  const accidentals = text.slice(1);
+  const tightSpacing = accidentals ? `${-ctx.measureText(accidentals[0]!).width * 0.4}px` : '0px';
+
+  ctx.letterSpacing = tightSpacing;
+  // actualBoundingBox* reflects the real rendered ink extent — unlike `.width`
+  // (the advance-width model), which pads in a trailing letter-spacing gap
+  // after the last character even though nothing is drawn there, throwing
+  // off the centering math below once letterSpacing is non-zero.
+  const accMetrics = ctx.measureText(accidentals);
+  const accWidth = accidentals ? accMetrics.actualBoundingBoxLeft + accMetrics.actualBoundingBoxRight : 0;
+  ctx.letterSpacing = '0px';
+  const letterWidth = ctx.measureText(letter).width;
+  const totalWidth = letterWidth + accWidth;
+
+  let x = cx - totalWidth / 2;
+  ctx.fillText(letter, x, cy);
+  x += letterWidth;
+  ctx.letterSpacing = tightSpacing;
+  ctx.fillText(accidentals, x, cy);
+  ctx.letterSpacing = '0px';
 }
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -255,7 +280,7 @@ export function createRenderer(canvas: HTMLCanvasElement): Renderer {
           const label = keyWindow.keyLabels.get(keyCode) ?? '';
           const [cx, cy] = hexCenter(q, r, effSize, originX, originY);
           const fontSize = Math.max(6, Math.min(9, effSize * 0.30));
-          ctx.font = `${fontSize}px system-ui, sans-serif`;
+          ctx.font = `${fontSize}px "Noto Sans", "Noto Sans KR", sans-serif, system-ui`;
           ctx.fillStyle = ok(l < 0.5 ? l + 0.40 : l - 0.25, c * 0.5, h, 0.55);
           ctx.textAlign = 'center';
           ctx.textBaseline = 'alphabetic';

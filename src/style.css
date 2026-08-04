@@ -23,7 +23,7 @@
     overflow: hidden;
     background-color: theme(--color-bg);
     color: theme(--color-fg);
-    font-family: sans-serif, system-ui;
+    font-family: "Noto Sans", "Noto Sans KR", sans-serif, system-ui;
 
     @apply text-sm xl:text-base
   }

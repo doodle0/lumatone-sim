@@ -647,3 +647,10 @@ const resizeObserver = new ResizeObserver((entries) => {
 resizeObserver.observe(canvas);
 const initRect = canvas.getBoundingClientRect();
 if (initRect.width > 0) renderer.resize(initRect.width, initRect.height);
+
+// The static layer may have been built with a fallback font if the Noto Sans
+// webfont was still loading; rebuild once it's ready so labels pick it up.
+document.fonts.ready.then(() => {
+  const rect = canvas.getBoundingClientRect();
+  if (rect.width > 0) renderer.resize(rect.width, rect.height);
+});
